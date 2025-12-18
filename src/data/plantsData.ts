@@ -33,3 +33,4 @@ export const plants: Plant[] = [
 // 默认备用起点（浙大南门）
 export const FALLBACK_START: [number, number] = [30.29517, 120.08215];
 
+

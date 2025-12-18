@@ -1,12 +1,14 @@
 import { useGeolocation } from '../../hooks/useGeolocation';
 import { useMapStore } from '../../stores/mapStore';
 import { useMapContext } from '../../contexts/MapContext';
+import { useRef } from 'react';
 import L from 'leaflet';
 
 export default function Header() {
   const { getCurrentPosition, isLoading } = useGeolocation();
   const { setUserLocation } = useMapStore();
   const { map } = useMapContext();
+  const userLocationMarkerRef = useRef<L.CircleMarker | null>(null);
 
   const handleLocateMe = async () => {
     if (!map) return;
@@ -15,6 +17,12 @@ export default function Header() {
       const coords = await getCurrentPosition();
       setUserLocation(coords);
       map.setView(coords, 17);
+      
+      // 清理之前的标记
+      if (userLocationMarkerRef.current) {
+        map.removeLayer(userLocationMarkerRef.current);
+        userLocationMarkerRef.current = null;
+      }
       
       // 添加用户位置标记
       const circleMarker = L.circleMarker(coords, {
@@ -26,6 +34,7 @@ export default function Header() {
         fillOpacity: 0.8
       }).addTo(map);
       circleMarker.bindTooltip("您在这里").openTooltip();
+      userLocationMarkerRef.current = circleMarker;
     } catch (error) {
       console.error('定位失败:', error);
     }

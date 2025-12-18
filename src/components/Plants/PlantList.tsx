@@ -4,11 +4,13 @@ import { useMapStore } from '../../stores/mapStore';
 import { useMapContext } from '../../contexts/MapContext';
 import { FALLBACK_START } from '../../data/plantsData';
 import { showStatus, hideStatus } from '../UI/StatusBar';
+import { useRef } from 'react';
 import L from 'leaflet';
 
 export default function PlantList() {
   const { isSidebarOpen } = useMapStore();
   const { map, routingControl } = useMapContext();
+  const userLocationMarkerRef = useRef<L.CircleMarker | null>(null);
 
   const handleViewLocation = (id: string) => {
     const plant = plants.find((p) => p.id === id);
@@ -43,6 +45,12 @@ export default function PlantList() {
       });
       startPoint = [position.coords.latitude, position.coords.longitude];
       
+      // 清理之前的标记
+      if (userLocationMarkerRef.current) {
+        map.removeLayer(userLocationMarkerRef.current);
+        userLocationMarkerRef.current = null;
+      }
+      
       // 更新用户位置标记
       const circleMarker = L.circleMarker(startPoint, {
         radius: 8,
@@ -53,6 +61,7 @@ export default function PlantList() {
         fillOpacity: 0.8
       }).addTo(map);
       circleMarker.bindTooltip("您在这里").openTooltip();
+      userLocationMarkerRef.current = circleMarker;
     } catch (err) {
       console.warn('Location access denied or timed out:', err);
       startPoint = FALLBACK_START;

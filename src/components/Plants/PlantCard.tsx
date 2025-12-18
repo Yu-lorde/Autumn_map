@@ -46,3 +46,4 @@ export default function PlantCard({ plant, onViewLocation, onNavigate }: PlantCa
   );
 }
 
+

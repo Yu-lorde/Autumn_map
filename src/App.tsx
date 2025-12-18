@@ -1,26 +1,22 @@
 import { useEffect } from 'react';
 import { MapContainer, ZoomControl } from 'react-leaflet';
-import { MapLayerUpdater, RoutingControl, PlantMarkers, InitialTileLayer } from './components/Map/MapContainer';
+import { MapLayerUpdater, RoutingControl, PlantMarkers, MapInitializer } from './components/Map/MapContainer';
 import MapControls from './components/Map/MapControls';
 import PlantList from './components/Plants/PlantList';
 import Header from './components/UI/Header';
 import Sidebar from './components/UI/Sidebar';
 import StatusBar from './components/UI/StatusBar';
-import { useMapStore } from './stores/mapStore';
 import { MapProvider } from './contexts/MapContext';
 import L from 'leaflet';
 
 function MapContent() {
   return (
     <>
+      <MapInitializer />
       <MapLayerUpdater />
       <PlantMarkers />
       <RoutingControl />
       <MapControls />
-      <PlantList />
-      <Header />
-      <Sidebar />
-      <StatusBar />
       <ZoomControl position="bottomright" />
     </>
   );
@@ -40,8 +36,9 @@ function App() {
 
   return (
     <MapProvider>
-      <div className="h-screen w-screen overflow-hidden">
-        <div className={`flex h-screen pt-[60px] box-border relative`}>
+      <div className="h-screen w-screen overflow-hidden bg-slate-100">
+        <Header />
+        <div className="flex h-screen pt-[60px] box-border relative">
           <PlantList />
           <div className="flex-1 relative">
             <MapContainer
@@ -56,7 +53,9 @@ function App() {
               <MapContent />
             </MapContainer>
           </div>
+          <Sidebar />
         </div>
+        <StatusBar />
       </div>
     </MapProvider>
   );

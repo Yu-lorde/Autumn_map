@@ -21,3 +21,4 @@ export const useMapStore = create<MapStore>((set) => ({
   toggleSidebar: () => set((state) => ({ isSidebarOpen: !state.isSidebarOpen })),
 }));
 
+

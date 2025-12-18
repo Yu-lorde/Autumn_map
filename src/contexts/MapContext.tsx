@@ -1,4 +1,4 @@
-import { createContext, useContext, ReactNode, useState } from 'react';
+import { createContext, useContext, ReactNode, useState, useCallback } from 'react';
 import L from 'leaflet';
 
 interface MapContextType {
@@ -21,13 +21,13 @@ export function MapProvider({ children }: { children: ReactNode }) {
   const [map, setMapState] = useState<L.Map | null>(null);
   const [routingControl, setRoutingControlState] = useState<L.Routing.Control | null>(null);
 
-  const setMap = (newMap: L.Map) => {
+  const setMap = useCallback((newMap: L.Map) => {
     setMapState(newMap);
-  };
+  }, []);
 
-  const setRoutingControl = (control: L.Routing.Control) => {
+  const setRoutingControl = useCallback((control: L.Routing.Control) => {
     setRoutingControlState(control);
-  };
+  }, []);
 
   return (
     <MapContext.Provider value={{ map, routingControl, setMap, setRoutingControl }}>
