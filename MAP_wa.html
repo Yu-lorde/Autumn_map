@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>我的第一个Leaflet地图</title>
+    <!-- 1. 引入Leaflet的CSS样式文件 -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <!-- 2. 引入Leaflet的JavaScript库文件 -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        /* 3. 为地图容器定义高度，否则地图无法显示 */
+        #map { height: 600px; }
+    </style>
+</head>
+<body>
+    <!-- 4. 创建一个用于显示地图的div容器 -->
+    <div id="map"></div>
+
+    <script>
+        // 5. 初始化地图，设置中心点（纬度，经度）和缩放级别
+        var map = L.map('map').setView([39.908823, 116.397470], 13);
+
+        // 6. 添加地图瓦片图层（这里使用OpenStreetMap）
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        // 7. 添加一个标记（以天安门广场为例）
+        L.marker([39.908823, 116.397470]).addTo(map)
+            .bindPopup("这是一个标记点！<br>这里是天安门广场。")
+            .openPopup();
+    </script>
+</body>
+</html>

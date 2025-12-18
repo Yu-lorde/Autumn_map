@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>浙江大学紫金港校区 — 秋季植物展示</title>
+    <!-- Leaflet 样式 -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <!-- Leaflet Routing Machine 样式（用于路线展示） -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css" />
+    <style>
+        :root{--accent:#2b7b2b;--card-bg:rgba(255,255,255,0.95)}
+        body{margin:0;font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Microsoft Yahei', Arial, sans-serif;color:#222}
+        #topbar{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:linear-gradient(90deg,#f8f9fa,#eef6ee);border-bottom:1px solid #e6e6e6}
+        #title{font-weight:600}
+        #map-container{height:calc(100vh - 56px);width:100%}
+
+        /* 浮动植物卡片区 */
+        .floating-cards{position:fixed;right:16px;top:72px;width:220px;max-height:60vh;overflow:auto;z-index:1000;padding:8px;border-radius:8px;background:var(--card-bg);box-shadow:0 6px 18px rgba(0,0,0,0.12)}
+
+        /* 翻页卡片（3D flip）基础 */
+        .flip-card{background:transparent;width:100%;height:84px;perspective:1000px;margin-bottom:12px}
+        .flip-card-inner{position:relative;width:100%;height:100%;text-align:left;transition:transform 0.6s;transform-style:preserve-3d;border-radius:8px}
+        .flip-card.is-flipped .flip-card-inner{transform:rotateY(180deg)}
+
+        .flip-card-front,.flip-card-back{position:absolute;left:0;top:0;width:100%;height:100%;-webkit-backface-visibility:hidden;backface-visibility:hidden;border-radius:8px;display:flex;align-items:center;gap:8px;padding:8px;box-sizing:border-box;border:1px solid #eee;background:#fff}
+        .flip-card-front img{width:68px;height:68px;object-fit:cover;border-radius:6px}
+        .flip-card-front .meta{flex:1}
+        .flip-card-front .name{font-weight:600}
+
+        .flip-card-back{transform:rotateY(180deg);flex-direction:column;justify-content:center}
+        .flip-card-back .short{font-size:13px;color:#444;line-height:1.2;margin-bottom:8px}
+        .flip-card-back .actions{display:flex;gap:8px}
+
+        /* 常规按钮 */
+        .btn{padding:6px 8px;border-radius:6px;border:none;background:var(--accent);color:#fff;font-size:12px;cursor:pointer}
+        .btn.secondary{background:#6c757d}
+
+        /* 列表面板 */
+        .list-panel{position:fixed;left:12px;top:72px;bottom:12px;width:360px;z-index:1200;background:var(--card-bg);box-shadow:0 8px 24px rgba(0,0,0,0.14);padding:12px;border-radius:8px;overflow:auto;display:none}
+        .list-panel header{display:flex;align-items:center;justify-content:space-between}
+        .list-item{padding:8px;border-bottom:1px solid #eee}
+        .list-item h4{margin:0 0 6px 0}
+
+        /* 详情模态 */
+        .modal{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:1500;background:#fff;padding:16px;border-radius:8px;box-shadow:0 10px 30px rgba(0,0,0,0.25);width:min(720px,96%);max-height:80vh;overflow:auto;display:none}
+        .modal .img{width:100%;height:260px;object-fit:cover;border-radius:6px;margin-bottom:10px}
+        .modal .actions{display:flex;gap:8px;margin-top:10px}
+
+        @media (max-width:600px){.floating-cards{right:8px;top:84px;width:180px}.flip-card{height:96px}.modal{width:96%}}
+    </style>
+</head>
+<body>
+    <div id="topbar">
+        <div id="title">浙江大学紫金港校区 — 秋季植物名片展示</div>
+        <div>
+            <button id="open-list" class="btn secondary">查看植物列表</button>
+            <button id="locate-me" class="btn">定位我</button>
+        </div>
+    </div>
+
+    <div id="map-container"></div>
+
+    <!-- 浮动名片区（示例卡片将由脚本渲染） -->
+    <div id="floating" class="floating-cards" aria-live="polite"></div>
+
+    <!-- 列表面板 -->
+    <aside id="listPanel" class="list-panel" aria-hidden="true">
+        <header>
+            <h3>秋季植物列表</h3>
+            <div>
+                <button id="close-list" class="btn secondary">关闭</button>
+            </div>
+        </header>
+        <div id="listContent"></div>
+    </aside>
+
+    <!-- 详情模态 -->
+    <div id="detailModal" class="modal" role="dialog" aria-hidden="true">
+        <button id="closeModal" class="btn secondary" style="float:right">关闭</button>
+        <h2 id="modalTitle"></h2>
+        <img id="modalImg" class="img" src="" alt="植物图像">
+        <div id="modalDesc"></div>
+        <div class="actions">
+            <button id="modalNav" class="btn">从我所在位置导航到此植物</button>
+            <button id="modalCenter" class="btn secondary">在地图上显示</button>
+        </div>
+    </div>
+
+    <!-- Leaflet 与 Routing Machine 脚本 -->
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.js"></script>
+
+    <script>
+        /***** 示例数据（占位） *****
+         * 请在此处替换为你从“植物志”等来源收集的真实数据：
+         * 每个对象包含：id, name, img, coords: [lat, lng], description
+         */
+        const plants = [
+            {
+                id: 'p1',
+                name: '银杏 Ginkgo biloba',
+                img: 'https://images.unsplash.com/photo-1501004318641-b39e6451bec6?w=800&q=60',
+                coords: [30.3095, 120.0817],
+                description: '示例描述：落叶乔木，叶扇形，有独特香气，秋季变为金黄色。请替换为植物志中的详细描述（形态、气味、栖息位置等）。'
+            },
+            {
+                id: 'p2',
+                name: '枫树 Acer spp.',
+                img: 'https://images.unsplash.com/photo-1502082553048-f009c37129b9?w=800&q=60',
+                coords: [30.3072, 120.0839],
+                description: '示例描述：落叶灌木或小乔木，叶片掌状裂。秋季叶色红艳。替换为详细资料。'
+            }
+            // 可继续添加更多植物
+        ];
+
+    // 地图初始化（扩大最大缩放等级以观察更精细细节）
+    const map = L.map('map-container', {minZoom: 13, maxZoom: 21, zoomControl: false}).setView([30.3081, 120.0827], 16);
+
+        // 校区边界（示例）
+        const southWest = L.latLng(30.29527968017544, 120.0698306833301);
+        const northEast = L.latLng(30.315167800095367, 120.0906472063971);
+        const campusBounds = L.latLngBounds(southWest, northEast);
+        map.setMaxBounds(campusBounds);
+
+        // 提供更精细的底图选项：
+        // 1) 街道（OpenStreetMap）
+        const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '© OpenStreetMap contributors'
+        });
+
+        // 2) 卫星影像（Esri World Imagery，较高分辨率，可放大至 z=20-21）
+        const esriSat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            maxZoom: 21,
+            attribution: 'Tiles © Esri'
+        });
+
+        // 3) 备用：高德矢量图（如果你有高德的授权 key，可替换为带 key 的地址）
+        const gaode = L.tileLayer('https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}', {
+            subdomains: ['1','2','3','4'], maxZoom: 18, attribution: '© 高德地图'
+        });
+
+        // 默认添加卫星图，但不直接锁死，你可以切换
+        esriSat.addTo(map);
+
+        // 图层控制（便于切换更精细的卫星与街道图）
+        const baseLayers = {
+            '卫星影像 (Esri)': esriSat,
+            '街道地图 (OSM)': osm,
+            '高德 街道 (示例)': gaode
+        };
+        L.control.layers(baseLayers, {}, {collapsed:false, position:'topright'}).addTo(map);
+
+        // 添加默认缩放控件（移动到右下以避免遮挡浮动卡片）
+        L.control.zoom({position:'bottomright'}).addTo(map);
+
+        // 比例尺
+        L.control.scale({position:'bottomleft', metric:true, imperial:false}).addTo(map);
+
+        // 设置更严格的边界粘滞性，避免用户过度拖出校区
+        map.setMaxBounds(campusBounds);
+        map.options.maxBoundsViscosity = 0.9;
+
+        // 存储标记与路由控件
+        const markers = {};
+        let routingControl = L.Routing.control({
+            waypoints: [],
+            router: L.Routing.osrmv1({serviceUrl: 'https://router.project-osrm.org/route/v1'}),
+            show: false,
+            addWaypoints: false,
+            routeWhileDragging: false,
+            fitSelectedRoute: true,
+            showAlternatives: false,
+            createMarker: function() { return null; }
+        }).addTo(map);
+
+        // 渲染浮动卡片
+        const floating = document.getElementById('floating');
+        function renderFloatingCards(){
+            floating.innerHTML = '';
+                plants.forEach(p => {
+                    // 构建翻页卡片结构
+                    const flip = document.createElement('div'); flip.className = 'flip-card';
+                    const inner = document.createElement('div'); inner.className = 'flip-card-inner';
+
+                    const front = document.createElement('div'); front.className = 'flip-card-front';
+                    const img = document.createElement('img'); img.src = p.img; img.alt = p.name;
+                    const meta = document.createElement('div'); meta.className = 'meta';
+                    const name = document.createElement('div'); name.className = 'name'; name.textContent = p.name;
+                    meta.appendChild(name);
+                    front.appendChild(img); front.appendChild(meta);
+
+                    const back = document.createElement('div'); back.className = 'flip-card-back';
+                    const short = document.createElement('div'); short.className = 'short'; short.textContent = p.description.slice(0,120) + (p.description.length>120? '...':'');
+                    const actions = document.createElement('div'); actions.className = 'actions';
+                    const detailBtn = document.createElement('button'); detailBtn.className = 'btn'; detailBtn.textContent = '查看详情';
+                    const navBtn = document.createElement('button'); navBtn.className = 'btn secondary'; navBtn.textContent = '导航';
+                    actions.appendChild(detailBtn); actions.appendChild(navBtn);
+                    back.appendChild(short); back.appendChild(actions);
+
+                    inner.appendChild(front); inner.appendChild(back);
+                    flip.appendChild(inner);
+
+                    // 点击正面翻页（避免按钮触发翻页）
+                    front.addEventListener('click', function(e){
+                        // 若点击到按钮则忽略
+                        if(e.target.tagName === 'BUTTON') return;
+                        flip.classList.toggle('is-flipped');
+                    });
+
+                    // 细节按钮与导航按钮行为
+                    detailBtn.addEventListener('click', function(e){ e.stopPropagation(); openDetail(p); });
+                    navBtn.addEventListener('click', function(e){ e.stopPropagation(); showPlantOnMap(p); startNavigationTo(p); });
+
+                    // 点击背面空白处也可以翻回
+                    back.addEventListener('click', function(e){ if(e.target.tagName !== 'BUTTON') flip.classList.toggle('is-flipped'); });
+
+                    floating.appendChild(flip);
+                })
+        }
+
+        // 渲染列表面板
+        const listPanel = document.getElementById('listPanel');
+        const listContent = document.getElementById('listContent');
+        function renderList(){
+            listContent.innerHTML = '';
+            plants.forEach(p=>{
+                const it = document.createElement('div'); it.className='list-item';
+                const h = document.createElement('h4'); h.textContent = p.name;
+                const pdesc = document.createElement('p'); pdesc.textContent = p.description.slice(0,150) + (p.description.length>150? '...':'');
+                const actions = document.createElement('div');
+                const openBtn = document.createElement('button'); openBtn.className='btn'; openBtn.textContent='查看';
+                const navBtn = document.createElement('button'); navBtn.className='btn secondary'; navBtn.textContent='导航';
+                openBtn.onclick = ()=>openDetail(p);
+                navBtn.onclick = ()=>{ listPanel.style.display='none'; showPlantOnMap(p); startNavigationTo(p); }
+                actions.appendChild(openBtn); actions.appendChild(navBtn);
+                it.appendChild(h); it.appendChild(pdesc); it.appendChild(actions);
+                listContent.appendChild(it);
+            })
+        }
+
+        // 在地图上显示植物（添加 marker/弹窗）
+        function showPlantOnMap(p){
+            if(!markers[p.id]){
+                const m = L.marker(p.coords).addTo(map);
+                const popupContent = `<div style="width:220px"><strong>${p.name}</strong><br><img src="${p.img}" style="width:100%;height:110px;object-fit:cover;margin-top:6px;border-radius:4px"><div style="margin-top:8px;display:flex;gap:6px"><button id=\"popupDetail\" class=\"btn secondary\">详情</button><button id=\"popupNav\" class=\"btn\">导航</button></div></div>`;
+                m.bindPopup(popupContent);
+                m.on('popupopen', function(e){
+                    // popup DOM 尚未加入文档，延迟挂载事件
+                    setTimeout(()=>{
+                        const pd = document.getElementById('popupDetail');
+                        const pn = document.getElementById('popupNav');
+                        if(pd) pd.onclick = ()=>{ openDetail(p); };
+                        if(pn) pn.onclick = ()=>{ startNavigationTo(p); };
+                    }, 100);
+                });
+                markers[p.id] = m;
+            }
+            map.setView(p.coords, 17, {animate:true});
+            markers[p.id].openPopup();
+        }
+
+        // 打开详情模态
+        const modal = document.getElementById('detailModal');
+        function openDetail(p){
+            document.getElementById('modalTitle').textContent = p.name;
+            document.getElementById('modalImg').src = p.img;
+            document.getElementById('modalDesc').textContent = p.description;
+            modal.style.display = 'block'; modal.setAttribute('aria-hidden','false');
+            // 绑定模态中的按钮
+            document.getElementById('modalNav').onclick = ()=>{ startNavigationTo(p); };
+            document.getElementById('modalCenter').onclick = ()=>{ showPlantOnMap(p); };
+        }
+
+        document.getElementById('closeModal').onclick = ()=>{ modal.style.display='none'; modal.setAttribute('aria-hidden','true'); };
+
+        // 获取用户位置（返回 Promise）
+        function getUserLocation(){
+            return new Promise((resolve,reject)=>{
+                if(!navigator.geolocation){
+                    reject(new Error('浏览器不支持定位'));
+                } else {
+                    navigator.geolocation.getCurrentPosition(pos=>{
+                        resolve([pos.coords.latitude, pos.coords.longitude]);
+                    }, err=>{
+                        reject(err);
+                    }, {enableHighAccuracy:true,timeout:8000});
+                }
+            })
+        }
+
+        // 开始导航：从用户位置到植物位置
+        async function startNavigationTo(p){
+            let start;
+            try{
+                start = await getUserLocation();
+            }catch(e){
+                // 如果定位失败，提示并以校区南门或地图中心为起点
+                alert('无法获得定位，使用校区默认位置作为起点（可在浏览器允许定位以获得更精确导航）');
+                start = [30.29517094113207, 120.08215655112966];
+            }
+            const dest = p.coords;
+            routingControl.setWaypoints([L.latLng(start[0], start[1]), L.latLng(dest[0], dest[1])]);
+            // 控制项在地图上已经添加，确保路线可见
+            map.fitBounds(L.latLngBounds([start, dest]), {padding:[60,60]});
+        }
+
+        // 定位我按钮
+        document.getElementById('locate-me').onclick = async ()=>{
+            try{
+                const pos = await getUserLocation();
+                map.setView(pos,17);
+                L.circle(pos, {radius:20, color:'#2b7b2b', fill:true, fillOpacity:0.3}).addTo(map).bindTooltip('你的位置').openTooltip();
+            }catch(e){
+                alert('获取定位失败：' + (e.message || e.code));
+            }
+        }
+
+        // 列表面板开关
+        document.getElementById('open-list').onclick = ()=>{ renderList(); listPanel.style.display='block'; listPanel.setAttribute('aria-hidden','false'); }
+        document.getElementById('close-list').onclick = ()=>{ listPanel.style.display='none'; listPanel.setAttribute('aria-hidden','true'); }
+
+        // 首次渲染
+        renderFloatingCards();
+
+        // 初始化时在地图上添加所有植物的静态标记（可注释以按需添加）
+        plants.forEach(p=>{
+            const m = L.marker(p.coords).bindTooltip(p.name);
+            m.addTo(map);
+            markers[p.id] = m; // 作为简易索引（注意：如果后面需要 popup 的交互，这里会被替换）
+        });
+
+        // 在地图上打开一个示例 popup（可移除）
+        const mainGateMarker = L.marker([30.29517094113207, 120.08215655112966]).addTo(map);
+        mainGateMarker.bindPopup("浙江大学紫金港校区南门");
+
+        // 使用提示：
+        console.log('框架已加载。请替换 plants 数组内的占位数据为你从植物志或校内采集到的真实信息（图片、坐标、详细描述）。');
+    </script>
+</body>
+</html>
