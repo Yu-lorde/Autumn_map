@@ -1,0 +1,20 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Leaflet CSS */
+@import 'leaflet/dist/leaflet.css';
+@import 'leaflet-routing-machine/dist/leaflet-routing-machine.css';
+
+/* 修复 Leaflet 默认图标路径问题 */
+.leaflet-container {
+  font-family: 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+}
+
+/* 自定义滚动条样式 */
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+  }
+}
+
