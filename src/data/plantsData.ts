@@ -2,6 +2,7 @@ import { Plant } from '../types';
 
 /**
  * 获取植物图片路径
+ * 默认使用 .jpg 扩展名，PlantImage 组件会自动尝试 .png, .webp 等其他格式
  * 优先使用本地图片：/plant-images/{plantId}-{locationIndex}.jpg
  * 如果本地图片不存在，PlantImage 组件会自动使用备用在线图片
  */

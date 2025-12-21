@@ -110,25 +110,27 @@ export default function MapLibreMap({ center, zoom }: MapContainerProps) {
         const targetElement = innerElement || markerElement;
 
         if (!targetElement) return;
+        
+        const baseTransform = (targetElement as any)._baseTransform || '';
 
         // 闪烁动画：放大缩小两次
         let flashCount = 0;
         const flashAnimation = () => {
           if (flashCount >= 2) {
             // 动画结束，恢复原状
-            targetElement.style.transform = 'scale(1)';
+            targetElement.style.transform = `${baseTransform} scale(1)`.trim();
             return;
           }
 
           flashCount++;
           
           // 放大
-          targetElement.style.transform = 'scale(1.6)';
+          targetElement.style.transform = `${baseTransform} scale(1.6)`.trim();
           targetElement.style.transition = 'transform 0.25s ease-out';
           
           // 缩小
           setTimeout(() => {
-            targetElement.style.transform = 'scale(1)';
+            targetElement.style.transform = `${baseTransform} scale(1)`.trim();
             targetElement.style.transition = 'transform 0.25s ease-in';
             
             // 等待后继续下一次闪烁
@@ -219,35 +221,29 @@ export default function MapLibreMap({ center, zoom }: MapContainerProps) {
         const displayName = locationCount > 1 
           ? `${plantInstance.name}-${plantInstance.locationIndex + 1}`
           : plantInstance.name;
-        // 外层容器：由 MapLibre 控制定位，不添加 transform
+        // 外层容器：直接设置尺寸，确保没有额外的布局干扰
         const el = document.createElement('div');
         el.className = 'plant-marker';
         el.style.width = '30px';
-        el.style.height = '30px';
+        el.style.height = '40px';
         el.style.cursor = 'pointer';
-        el.style.position = 'relative';
         
-        // 内层元素：用于显示和动画，不干扰 MapLibre 的定位
-        const innerEl = document.createElement('div');
-        innerEl.style.width = '100%';
-        innerEl.style.height = '100%';
-        innerEl.style.borderRadius = '50%';
-        innerEl.style.background = 'linear-gradient(135deg, #f97316 0%, #fb923c 100%)'; // 明亮的橙色渐变
-        innerEl.style.border = '3px solid white';
-        innerEl.style.boxShadow = '0 3px 8px rgba(249, 115, 22, 0.4)';
-        innerEl.style.transform = 'scale(1)'; // 初始缩放
-        innerEl.style.transition = 'transform 0.3s ease-in-out'; // 添加过渡效果
-        innerEl.style.display = 'flex';
-        innerEl.style.alignItems = 'center';
-        innerEl.style.justifyContent = 'center';
-        innerEl.style.color = 'white';
-        innerEl.style.fontSize = '14px';
-        innerEl.innerHTML = '🍂';
+        // 内部直接填充 SVG，确保针尖坐标 (15, 40) 是容器的绝对底边中心
+        el.innerHTML = `
+          <div style="position: relative; width: 30px; height: 40px; pointer-events: none; transform-origin: bottom;">
+            <svg width="30" height="40" viewBox="0 0 30 40" fill="none" xmlns="http://www.w3.org/2000/svg" style="display: block; filter: drop-shadow(0 2px 3px rgba(0,0,0,0.3));">
+              <path d="M15 40C15 40 30 26.25 30 15C30 6.71573 23.2843 0 15 0C6.71573 0 0 6.71573 0 15C0 26.25 15 40 15 40Z" fill="#f97316"/>
+              <path d="M15 38.5C15 38.5 28.5 25.5 28.5 15C28.5 7.5 22.5 1.5 15 1.5C7.5 1.5 1.5 7.5 1.5 15C1.5 25.5 15 38.5 15 38.5Z" stroke="white" stroke-width="1.5"/>
+            </svg>
+            <div style="position: absolute; top: 7px; left: 0; width: 30px; text-align: center; color: white; font-size: 14px; font-family: Arial, sans-serif; line-height: 1;">🍂</div>
+          </div>
+        `;
         
         // 存储内层元素的引用，用于后续闪烁动画
+        const innerEl = el.firstElementChild as HTMLElement;
         (innerEl as any)._isInnerElement = true;
-        el.appendChild(innerEl);
-
+        (innerEl as any)._baseTransform = ''; 
+        
         // 创建美观的 popup 内容（使用 DOM 元素避免 XSS 风险）
         const popupContainer = document.createElement('div');
         popupContainer.style.cssText = `
@@ -324,7 +320,7 @@ export default function MapLibreMap({ center, zoom }: MapContainerProps) {
         popupContainer.appendChild(contentDiv);
 
         const popup = new maplibregl.Popup({ 
-          offset: 25,
+          offset: [0, -40], // 对应地图钉的高度，确保气泡在尖端正上方
           closeButton: true,
           closeOnClick: false,
           className: 'plant-popup'
@@ -335,7 +331,8 @@ export default function MapLibreMap({ center, zoom }: MapContainerProps) {
 
         const marker = new maplibregl.Marker({ 
           element: el,
-          anchor: 'center' // 确保标记中心点对齐，修复缩放时位置偏移
+          anchor: 'bottom', // 强制锚定底部中心
+          offset: [0, 0]    // 确保没有亚像素偏移
         })
           .setLngLat([plantInstance.coords[1], plantInstance.coords[0]])
           .setPopup(popup)
@@ -411,6 +408,14 @@ export default function MapLibreMap({ center, zoom }: MapContainerProps) {
           clusterMarker.remove();
         });
         clusterMarkersRef.current = [];
+
+        // 默认隐藏所有原始标记，后续根据聚合情况决定显示哪些
+        markersRef.current.forEach(marker => {
+          const element = marker.getElement();
+          if (element) {
+            element.style.display = 'none';
+          }
+        });
 
         // 计算聚合 - 使用改进的聚类算法
         const clusters: Array<Array<{ marker: maplibregl.Marker; plantInstance: any; point: { x: number; y: number } }>> = [];
