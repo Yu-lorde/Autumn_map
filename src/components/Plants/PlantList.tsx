@@ -102,7 +102,16 @@ export default function PlantList() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [plantLocationIndices]);
 
-  const fetchRouteTime = async (profile: 'foot' | 'bicycle', start: [number, number], end: [number, number]) => {
+  importRouteConfig();
+
+  type RouteEstimate = { minutes: number; source: 'osrm' | 'estimate' };
+
+  async function importRouteConfig() {
+    /* lazy import to avoid bundling if unused */
+    return await import('../../config/routeConfig');
+  }
+
+  const fetchRouteTime = async (profile: 'foot' | 'bicycle', start: [number, number], end: [number, number]): Promise<RouteEstimate> => {
     // Map app-level profiles to OSRM-supported profiles
     const profileMap: Record<string, string> = { foot: 'walking', bicycle: 'cycling' };
     const osrmProfile = profileMap[profile] || profile;
@@ -122,6 +131,13 @@ export default function PlantList() {
       return R * c;
     };
 
+    // Load config values
+    const routeCfg = await importRouteConfig();
+    const walkFactor = routeCfg.WALK_ROUTE_FACTOR ?? 1.2;
+    const bikeFactor = routeCfg.BIKE_ROUTE_FACTOR ?? 1.1;
+    const walkSpeed = routeCfg.WALK_SPEED_M_PER_MIN ?? 80;
+    const bikeSpeed = routeCfg.BIKE_SPEED_M_PER_MIN ?? 250;
+
     try {
       const url = `https://router.project-osrm.org/route/v1/${osrmProfile}/${start[1]},${start[0]};${end[1]},${end[0]}?overview=false&annotations=duration`;
       const response = await fetch(url, { cache: 'no-store' });
@@ -132,18 +148,20 @@ export default function PlantList() {
       if (data && data.code === 'Ok' && Array.isArray(data.routes) && data.routes.length > 0) {
         const durationSec = data.routes[0].duration; // seconds
         const minutes = Math.max(1, Math.round(durationSec / 60));
-        return minutes;
+        return { minutes, source: 'osrm' };
       }
 
       throw new Error('No route returned');
     } catch (err) {
       console.warn(`Failed to fetch ${osrmProfile} route, using fallback estimate:`, err);
 
-      // Fallback: straight-line estimate based on average speeds (m/min)
+      // Fallback: improved straight-line estimate using route factor
       const dist = haversineDistance(start, end);
-      const speed = profile === 'bicycle' ? 250 : 80; // bicycle ~15km/h (250 m/min), walk ~4.8km/h (80 m/min)
-      const estimateMinutes = Math.max(1, Math.round(dist / speed));
-      return estimateMinutes;
+      const factor = profile === 'bicycle' ? bikeFactor : walkFactor;
+      const speed = profile === 'bicycle' ? bikeSpeed : walkSpeed;
+      const adjustedDistance = Math.max(1, dist * factor);
+      const estimateMinutes = Math.max(1, Math.round(adjustedDistance / speed));
+      return { minutes: estimateMinutes, source: 'estimate' };
     }
   };
 
@@ -188,19 +206,16 @@ export default function PlantList() {
       showStatus('定位不可用，为您展示从南门出发的路线');
     }
     
-    // 获取步行和骑行时间
-    const [walkTime, bikeTime] = await Promise.all([
+    // 获取步行和骑行时间（并显示来源）
+    const [walkEst, bikeEst] = await Promise.all([
       fetchRouteTime('foot', startPoint, plantInstance.coords),
       fetchRouteTime('bicycle', startPoint, plantInstance.coords)
     ]);
 
-    let statusMsg = '';
-    if (walkTime !== null && bikeTime !== null) {
-      statusMsg = `建议路线已生成：步行约 ${walkTime} 分钟，骑行约 ${bikeTime} 分钟`;
-    } else {
-      statusMsg = '导航路线已生成';
-    }
-    
+    const walkLabel = walkEst.source === 'osrm' ? `步行约 ${walkEst.minutes} 分钟` : `步行约 ${walkEst.minutes} 分钟（估算）`;
+    const bikeLabel = bikeEst.source === 'osrm' ? `骑行约 ${bikeEst.minutes} 分钟` : `骑行约 ${bikeEst.minutes} 分钟（估算）`;
+
+    const statusMsg = `建议路线已生成：${walkLabel}，${bikeLabel}`;
     showStatus(statusMsg);
     
     // 设置路线
