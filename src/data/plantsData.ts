@@ -16,13 +16,13 @@ function getPlantImagePath(plantId: string, locationIndex: number): string {
 export const plants: Plant[] = [
   {
     id: 'p1',
-    name: '银杏',
-    latin: 'Ginkgo biloba',
+    name: '枫香树',
+    latin: 'Liquidambar formosana',
     tag: '金黄',
-    description: '落叶乔木。秋季叶片转为金黄色。紫金港校区东西大道两旁均有种植。',
+    description: '坐标数据：30.309452N，120.078723E\n植物志记录：落叶乔木，高达30米，胸径最大可达1米，树皮灰褐色，方块状剥落；小枝干后灰色，被柔毛，略有皮孔；芽体卵形，长约1厘米，略被微毛，鳞状苞片敷有树脂，干后棕黑色，有光泽。叶薄革质，阔卵形，掌状3裂，中央裂片较长，先端尾状渐尖；两侧裂片平展；基部心形旁均有种植。\n气味数据：有清凉气味，有药用价值\n情绪数据：心旷神怡，放松身心',
     locations: [
       {
-        coords: [30.3095, 120.0817],
+        coords: [30.309452, 120.078723],
         img: getPlantImagePath('p1', 0)
       }
       // 示例：如何添加多个位置（同一植物在不同位置）
@@ -38,26 +38,26 @@ export const plants: Plant[] = [
   },
   {
     id: 'p2',
-    name: '鸡爪槭',
-    latin: 'Acer palmatum',
+    name: '红枫',
+    latin: 'Acer palmatum Atropurpureum',
     tag: '红叶',
-    description: '落叶小乔木。秋后叶片由绿变红，形态优美。',
+    description: '坐标数据：30.304790 N，120.075703 E\n植物志记录：园艺种。落叶小乔木，高5～8 m；树冠伞形，枝条开张，细弱。单叶对生，近圆形，薄纸质，掌状7～9深裂，裂深常为全叶片的1/2～1/3，基部心形，裂片卵状长椭圆形至披针形，先端尖，有细锐重锯齿，背面脉腋有白簇毛。伞房花序径约6～8 mm，萼片暗红色，花瓣紫色。果长1～2.5 cm，两翅开展成钝角。花期5月；果期9～10月。叶片常年红色或紫红色，枝条紫红色。\n气味数据：干燥的草本香，略带焦糖微甜\n情绪数据：宁静而幸福',
     locations: [
       {
-        coords: [30.3072, 120.0839],
+        coords: [30.304790, 120.075703],
         img: getPlantImagePath('p2', 0)
       }
     ]
   },
   {
     id: 'p3',
-    name: '桂花',
-    latin: 'Osmanthus fragrans',
+    name: '法国梧桐（三球悬铃木）',
+    latin: 'Platanus orientalis',
     tag: '馥郁',
-    description: '常绿阔叶乔木。秋季开花，香气袭人。',
+    description: '坐标数据：30.306485 N，120.079155 E\n植物志记录：叶大乔木，高达30米，树皮薄片状脱落；嫩枝被黄褐色绒毛，老枝秃净，干后红褐色，有细小皮孔。叶大，轮廓阔卵形，宽9-18厘米，长8-16厘米，基部浅三角状心形，或近于平截，上部掌状5-7裂，稀为3裂，中央裂片深裂过半，长7-9厘米，宽4-6厘米，两侧裂片稍短，边缘有少数裂片状粗齿，上下两面初时被灰黄色毛被，以后脱落，仅在背脉上有毛，掌状脉5条或3条，从基部发出\n气味数据：淡淡青草香，有微微发酵感\n情绪数据：有一点清冷的感觉',
     locations: [
       {
-        coords: [30.3015, 120.0845],
+        coords: [30.306485, 120.079155],
         img: getPlantImagePath('p3', 0)
       }
     ]
@@ -73,10 +73,6 @@ export const plants: Plant[] = [
         coords: [30.3050, 120.0820],
         img: getPlantImagePath('p4', 0)
       },
-      {
-        coords: [30.3030, 120.0840],
-        img: getPlantImagePath('p4', 1)
-      }
     ]
   },
   {
