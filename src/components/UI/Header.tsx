@@ -65,7 +65,7 @@ export default function Header() {
             className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
               currentLayer === 'light' 
                 ? 'bg-primary text-white btn-primary-shine btn-shine' 
-                : 'text-[#92400e] hover:text-primary hover:bg-amber-100 btn-light-shine'
+                : 'text-[#92400e] hover:text-orange-600 hover:bg-orange-100 btn-light-shine'
             }`}
           >
             简明地图
@@ -75,7 +75,7 @@ export default function Header() {
             className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
               currentLayer === 'satellite' 
                 ? 'bg-primary text-white btn-primary-shine btn-shine' 
-                : 'text-[#92400e] hover:text-primary hover:bg-amber-100 btn-light-shine'
+                : 'text-[#92400e] hover:text-orange-600 hover:bg-orange-100 btn-light-shine'
             }`}
           >
             实景地图
