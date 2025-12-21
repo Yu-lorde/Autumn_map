@@ -1,42 +1,32 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 
-// 全局状态管理
-let statusBarRef: ((text: string | null) => void) | null = null;
+let setStatusGlobal: (msg: string | null) => void = () => {};
 
-export function showStatus(text: string) {
-  if (statusBarRef) {
-    statusBarRef(text);
-  }
-}
+export const showStatus = (msg: string) => {
+  setStatusGlobal(msg);
+};
 
-export function hideStatus() {
-  if (statusBarRef) {
-    statusBarRef(null);
-  }
-}
+export const hideStatus = () => {
+  setStatusGlobal(null);
+};
 
 export default function StatusBar() {
-  const [statusText, setStatusText] = useState<string | null>(null);
-  const statusBarRefRef = useRef<((text: string | null) => void) | null>(null);
+  const [status, setStatus] = useState<string | null>(null);
 
   useEffect(() => {
-    statusBarRefRef.current = setStatusText;
-    statusBarRef = setStatusText;
-    return () => {
-      statusBarRef = null;
-      statusBarRefRef.current = null;
-    };
+    setStatusGlobal = setStatus;
   }, []);
 
-  if (!statusText) return null;
+  if (!status) return null;
 
   return (
     <div 
       id="status-bar"
-      className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[1001] bg-white/92 backdrop-blur-md px-5 py-2 rounded-full shadow-md text-sm border border-black/10"
+      className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[2000] bg-primary text-white px-6 py-2.5 rounded-full font-bold text-sm animate-bounce border-2 border-white/30 backdrop-blur-sm btn-primary-shine btn-shine"
     >
-      {statusText}
+      <div className="flex items-center gap-2">
+        {status}
+      </div>
     </div>
   );
 }
-

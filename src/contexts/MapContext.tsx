@@ -1,11 +1,24 @@
-import { createContext, useContext, ReactNode, useState } from 'react';
-import L from 'leaflet';
+import { createContext, useContext, ReactNode, useState, useCallback } from 'react';
+
+interface MapAdapter {
+  setView: (coords: [number, number], zoom: number) => void;
+  fitBounds: (bounds: any, options?: any) => void;
+  invalidateSize?: () => void;
+  eachLayer?: (callback: (layer: any) => void) => void;
+  removeLayer?: (layer: any) => void;
+  setUserLocation?: (coords: [number, number]) => void;
+  flashMarker?: (plantId: string, locationIndex: number) => void;
+}
+
+interface RoutingControlAdapter {
+  setWaypoints: (waypoints: any[]) => void;
+}
 
 interface MapContextType {
-  map: L.Map | null;
-  routingControl: L.Routing.Control | null;
-  setMap: (map: L.Map) => void;
-  setRoutingControl: (control: L.Routing.Control) => void;
+  map: MapAdapter | null;
+  routingControl: RoutingControlAdapter | null;
+  setMap: (map: MapAdapter) => void;
+  setRoutingControl: (control: RoutingControlAdapter) => void;
 }
 
 const MapContext = createContext<MapContextType>({
@@ -18,16 +31,16 @@ const MapContext = createContext<MapContextType>({
 export const useMapContext = () => useContext(MapContext);
 
 export function MapProvider({ children }: { children: ReactNode }) {
-  const [map, setMapState] = useState<L.Map | null>(null);
-  const [routingControl, setRoutingControlState] = useState<L.Routing.Control | null>(null);
+  const [map, setMapState] = useState<MapAdapter | null>(null);
+  const [routingControl, setRoutingControlState] = useState<RoutingControlAdapter | null>(null);
 
-  const setMap = (newMap: L.Map) => {
+  const setMap = useCallback((newMap: MapAdapter) => {
     setMapState(newMap);
-  };
+  }, []);
 
-  const setRoutingControl = (control: L.Routing.Control) => {
+  const setRoutingControl = useCallback((control: RoutingControlAdapter) => {
     setRoutingControlState(control);
-  };
+  }, []);
 
   return (
     <MapContext.Provider value={{ map, routingControl, setMap, setRoutingControl }}>

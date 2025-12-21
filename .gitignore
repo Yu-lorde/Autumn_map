@@ -23,3 +23,18 @@ dist-ssr
 *.sln
 *.sw?
 
+# 本地地图瓦片
+# 紫金港校区的瓦片（zoom 15-16）允许提交到 git，因为这是最常用的区域
+# 其他区域的瓦片不提交（文件较大）
+public/map-tiles/**/*.png
+public/map-tiles/**/*.jpg
+public/map-tiles/**/*.jpeg
+!public/map-tiles/.gitkeep
+# 允许紫金港校区的瓦片（zoom 15-16）
+!public/map-tiles/light/15/
+!public/map-tiles/light/16/
+!public/map-tiles/satellite/15/
+!public/map-tiles/satellite/16/
+
+
+
