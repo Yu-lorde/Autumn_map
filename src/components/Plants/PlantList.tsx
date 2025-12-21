@@ -103,18 +103,48 @@ export default function PlantList() {
   }, [plantLocationIndices]);
 
   const fetchRouteTime = async (profile: 'foot' | 'bicycle', start: [number, number], end: [number, number]) => {
+    // Map app-level profiles to OSRM-supported profiles
+    const profileMap: Record<string, string> = { foot: 'walking', bicycle: 'cycling' };
+    const osrmProfile = profileMap[profile] || profile;
+
+    // Helper: haversine fallback estimate (meters)
+    const haversineDistance = (a: [number, number], b: [number, number]) => {
+      const toRad = (deg: number) => (deg * Math.PI) / 180;
+      const R = 6371000; // Earth radius in meters
+      const dLat = toRad(b[0] - a[0]);
+      const dLon = toRad(b[1] - a[1]);
+      const lat1 = toRad(a[0]);
+      const lat2 = toRad(b[0]);
+      const sinDLat = Math.sin(dLat / 2);
+      const sinDLon = Math.sin(dLon / 2);
+      const aa = sinDLat * sinDLat + Math.cos(lat1) * Math.cos(lat2) * sinDLon * sinDLon;
+      const c = 2 * Math.atan2(Math.sqrt(aa), Math.sqrt(1 - aa));
+      return R * c;
+    };
+
     try {
-      const response = await fetch(
-        `https://router.project-osrm.org/route/v1/${profile}/${start[1]},${start[0]};${end[1]},${end[0]}?overview=false`
-      );
+      const url = `https://router.project-osrm.org/route/v1/${osrmProfile}/${start[1]},${start[0]};${end[1]},${end[0]}?overview=false&annotations=duration`;
+      const response = await fetch(url, { cache: 'no-store' });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const data = await response.json();
-      if (data.routes && data.routes.length > 0) {
-        return Math.round(data.routes[0].duration / 60); // minutes
+
+      // OSRM returns code === 'Ok' on success
+      if (data && data.code === 'Ok' && Array.isArray(data.routes) && data.routes.length > 0) {
+        const durationSec = data.routes[0].duration; // seconds
+        const minutes = Math.max(1, Math.round(durationSec / 60));
+        return minutes;
       }
+
+      throw new Error('No route returned');
     } catch (err) {
-      console.error(`Failed to fetch ${profile} route:`, err);
+      console.warn(`Failed to fetch ${osrmProfile} route, using fallback estimate:`, err);
+
+      // Fallback: straight-line estimate based on average speeds (m/min)
+      const dist = haversineDistance(start, end);
+      const speed = profile === 'bicycle' ? 250 : 80; // bicycle ~15km/h (250 m/min), walk ~4.8km/h (80 m/min)
+      const estimateMinutes = Math.max(1, Math.round(dist / speed));
+      return estimateMinutes;
     }
-    return null;
   };
 
   const handleNavigate = async (id: string) => {
