@@ -298,7 +298,7 @@
             }catch(e){
                 // 如果定位失败，提示并以校区南门或地图中心为起点
                 alert('无法获得定位，使用校区默认位置作为起点（可在浏览器允许定位以获得更精确导航）');
-                start = [30.300644, 120.084806];
+                start = [30.295381, 120.082144];
             }
             const dest = p.coords;
             routingControl.setWaypoints([L.latLng(start[0], start[1]), L.latLng(dest[0], dest[1])]);
