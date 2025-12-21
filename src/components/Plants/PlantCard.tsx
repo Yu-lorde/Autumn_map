@@ -4,6 +4,7 @@ import { plants } from '../../data/plantsData';
 import PlantImage from './PlantImage';
 import { getPlantImageFallback } from '../../utils/plantImageFallbacks';
 import ImageModal from './ImageModal';
+import { withBase } from '../../utils/publicUrl';
 
 interface PlantCardProps {
   plant: PlantInstance;
@@ -49,10 +50,7 @@ export default function PlantCard({
 
   // 获取实际图片URL（用于模态框显示）
   const getImageUrl = () => {
-    if (plant.img.startsWith('/')) {
-      return `${window.location.origin}${plant.img}`;
-    }
-    return plant.img;
+    return withBase(plant.img);
   };
 
   return (
