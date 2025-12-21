@@ -1,9 +1,11 @@
 import { useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import PlantImage from './PlantImage';
 
 interface ImageModalProps {
   src: string;
   alt: string;
+  fallbackSrc?: string;
   isOpen: boolean;
   onClose: () => void;
 }
@@ -60,11 +62,11 @@ export default function ImageModal({ src, alt, isOpen, onClose }: ImageModalProp
         className="relative max-w-[90vw] max-h-[90vh] flex items-center justify-center"
         onClick={(e) => e.stopPropagation()}
       >
-        <img
+        <PlantImage
           src={src}
           alt={alt}
+          fallbackSrc={fallbackSrc}
           className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl"
-          onClick={onClose}
         />
       </div>
 
