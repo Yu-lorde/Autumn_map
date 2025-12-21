@@ -16,6 +16,7 @@ export default function MapLibreMap({ center, zoom }: MapContainerProps) {
   const mapInstanceRef = useRef<maplibregl.Map | null>(null);
   const markersRef = useRef<maplibregl.Marker[]>([]);
   const markersMapRef = useRef<Map<string, maplibregl.Marker>>(new Map()); // 存储标记映射：plantId-locationIndex -> Marker
+  const popupsRef = useRef<maplibregl.Popup[]>([]); // 存储所有 popup 实例的引用
   const navControlRef = useRef<maplibregl.NavigationControl | null>(null);
   const { currentLayer } = useMapStore();
   const { setMap, setRoutingControl } = useMapContext();
@@ -26,6 +27,9 @@ export default function MapLibreMap({ center, zoom }: MapContainerProps) {
   // 切换图层时只改变图层可见性，不重新下载瓦片
   useEffect(() => {
     if (!mapContainer.current || mapInstanceRef.current) return;
+
+    // 重置 popups 引用数组
+    popupsRef.current = [];
 
     const map = new maplibregl.Map({
       container: mapContainer.current,
@@ -231,62 +235,90 @@ export default function MapLibreMap({ center, zoom }: MapContainerProps) {
         (innerEl as any)._isInnerElement = true;
         el.appendChild(innerEl);
 
-        // 创建美观的 popup 内容
-        const popupHTML = `
-          <div style="
-            font-family: 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
-            padding: 0;
-            min-width: 180px;
-          ">
-            <div style="
-              background: linear-gradient(135deg, #f97316 0%, #fb923c 100%);
-              color: white;
-              padding: 12px 16px;
-              border-radius: 8px 8px 0 0;
-              font-weight: bold;
-              font-size: 15px;
-              display: flex;
-              align-items: center;
-              gap: 8px;
-            ">
-              <span style="font-size: 18px;">🍂</span>
-              <span>${displayName}</span>
-            </div>
-            <div style="
-              background: white;
-              padding: 10px 16px 12px;
-              border-radius: 0 0 8px 8px;
-              border: 2px solid #f97316;
-              border-top: none;
-              box-shadow: 0 4px 12px rgba(249, 115, 22, 0.15);
-            ">
-              <div style="
-                color: #92400e;
-                font-size: 11px;
-                font-style: italic;
-                margin-bottom: 6px;
-                text-transform: uppercase;
-                letter-spacing: 0.5px;
-              ">${plantInstance.latin}</div>
-              <div style="
-                color: #78350f;
-                font-size: 12px;
-                line-height: 1.4;
-                display: -webkit-box;
-                -webkit-line-clamp: 2;
-                -webkit-box-orient: vertical;
-                overflow: hidden;
-              ">${plantInstance.description.substring(0, 60)}${plantInstance.description.length > 60 ? '...' : ''}</div>
-            </div>
-          </div>
+        // 创建美观的 popup 内容（使用 DOM 元素避免 XSS 风险）
+        const popupContainer = document.createElement('div');
+        popupContainer.style.cssText = `
+          font-family: 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+          padding: 0;
+          min-width: 180px;
         `;
+
+        // 头部区域
+        const headerDiv = document.createElement('div');
+        headerDiv.style.cssText = `
+          background: linear-gradient(135deg, #f97316 0%, #fb923c 100%);
+          color: white;
+          padding: 12px 16px;
+          border-radius: 8px 8px 0 0;
+          font-weight: bold;
+          font-size: 15px;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        `;
+        
+        const emojiSpan = document.createElement('span');
+        emojiSpan.style.fontSize = '18px';
+        emojiSpan.textContent = '🍂';
+        
+        const nameSpan = document.createElement('span');
+        nameSpan.textContent = displayName; // 使用 textContent 防止 XSS
+        
+        headerDiv.appendChild(emojiSpan);
+        headerDiv.appendChild(nameSpan);
+
+        // 内容区域
+        const contentDiv = document.createElement('div');
+        contentDiv.style.cssText = `
+          background: white;
+          padding: 10px 16px 12px;
+          border-radius: 0 0 8px 8px;
+          border: 2px solid #f97316;
+          border-top: none;
+          box-shadow: 0 4px 12px rgba(249, 115, 22, 0.15);
+        `;
+        
+        const latinDiv = document.createElement('div');
+        latinDiv.style.cssText = `
+          color: #92400e;
+          font-size: 11px;
+          font-style: italic;
+          margin-bottom: 6px;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+        `;
+        latinDiv.textContent = plantInstance.latin; // 使用 textContent 防止 XSS
+        
+        const descriptionDiv = document.createElement('div');
+        descriptionDiv.style.cssText = `
+          color: #78350f;
+          font-size: 12px;
+          line-height: 1.4;
+          display: -webkit-box;
+          -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+        `;
+        const descriptionText = plantInstance.description.length > 60 
+          ? plantInstance.description.substring(0, 60) + '...'
+          : plantInstance.description;
+        descriptionDiv.textContent = descriptionText; // 使用 textContent 防止 XSS
+        
+        contentDiv.appendChild(latinDiv);
+        contentDiv.appendChild(descriptionDiv);
+        
+        popupContainer.appendChild(headerDiv);
+        popupContainer.appendChild(contentDiv);
 
         const popup = new maplibregl.Popup({ 
           offset: 25,
           closeButton: true,
           closeOnClick: false,
           className: 'plant-popup'
-        }).setHTML(popupHTML);
+        }).setDOMContent(popupContainer);
+
+        // 将 popup 添加到引用数组中
+        popupsRef.current.push(popup);
 
         const marker = new maplibregl.Marker({ element: el })
           .setLngLat([plantInstance.coords[1], plantInstance.coords[0]])
@@ -299,12 +331,10 @@ export default function MapLibreMap({ center, zoom }: MapContainerProps) {
 
         // 添加点击事件：移动地图到植物位置并显示气泡
         el.addEventListener('click', () => {
-          // 先关闭其他可能打开的popup
-          const existingPopups = document.querySelectorAll('.maplibregl-popup');
-          existingPopups.forEach((pop: Element) => {
-            const popupInstance = (pop as any)._maplibreglPopup;
-            if (popupInstance && popupInstance !== popup) {
-              popupInstance.remove();
+          // 关闭其他已打开的 popup（使用 ref 中维护的实例引用）
+          popupsRef.current.forEach((existingPopup) => {
+            if (existingPopup !== popup && existingPopup.isOpen()) {
+              existingPopup.remove();
             }
           });
           
@@ -385,8 +415,9 @@ export default function MapLibreMap({ center, zoom }: MapContainerProps) {
         mapInstanceRef.current.remove();
         mapInstanceRef.current = null;
       }
+      // 清理 popups 引用数组
+      popupsRef.current = [];
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [center, zoom]);
 
   // 优化：切换图层时只改变图层可见性，不重新下载瓦片
