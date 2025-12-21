@@ -5,6 +5,7 @@ import { useMapStore } from '../../stores/mapStore';
 import { useMapContext } from '../../contexts/MapContext';
 import { getAllPlantInstances, plants } from '../../data/plantsData';
 import { localLightStyle, localSatelliteStyle } from '../../utils/localMapStyles';
+import { wgs84ToGcj02 } from '../../utils/coordUtils';
 
 interface MapContainerProps {
   center: [number, number];
@@ -36,10 +37,13 @@ export default function MapLibreMap({ center, zoom }: MapContainerProps) {
     // 切换到 satellite 时再动态加载 satellite 源，减少初始加载时间
     const initialStyle = currentLayer === 'light' ? localLightStyle : localSatelliteStyle;
     
+    // 将 WGS-84 中心点转换为 GCJ-02 以匹配高德瓦片
+    const [gcjLat, gcjLng] = wgs84ToGcj02(center[0], center[1]);
+    
     const map = new maplibregl.Map({
       container: mapContainer.current,
       style: initialStyle, // 初始只加载当前需要的图层，而不是同时加载两个
-      center: [center[1], center[0]], // MapLibre 使用 [lng, lat]
+      center: [gcjLng, gcjLat], // MapLibre 使用 [lng, lat]
       zoom: zoom,
       minZoom: 10,
       maxZoom: 18,
@@ -58,11 +62,14 @@ export default function MapLibreMap({ center, zoom }: MapContainerProps) {
     // 创建适配器以兼容现有的 Leaflet API
     const mapAdapter = {
       setView: (coords: [number, number], zoomLevel: number) => {
-        map.flyTo({ center: [coords[1], coords[0]], zoom: zoomLevel });
+        const [glat, glng] = wgs84ToGcj02(coords[0], coords[1]);
+        map.flyTo({ center: [glng, glat], zoom: zoomLevel });
       },
       fitBounds: (bounds: { getSouthWest: () => { lat: number; lng: number }; getNorthEast: () => { lat: number; lng: number } }, options?: { padding?: number | number[] }) => {
         const sw = bounds.getSouthWest();
         const ne = bounds.getNorthEast();
+        const [swLat, swLng] = wgs84ToGcj02(sw.lat, sw.lng);
+        const [neLat, neLng] = wgs84ToGcj02(ne.lat, ne.lng);
         let padding: number = 50;
         if (typeof options?.padding === 'number') {
           padding = options.padding;
@@ -70,7 +77,7 @@ export default function MapLibreMap({ center, zoom }: MapContainerProps) {
           padding = options.padding[0]; // 取数组第一个值作为统一 padding
         }
         map.fitBounds(
-          [[sw.lng, sw.lat], [ne.lng, ne.lat]],
+          [[swLng, swLat], [neLng, neLat]],
           { padding }
         );
       },
@@ -78,6 +85,7 @@ export default function MapLibreMap({ center, zoom }: MapContainerProps) {
         map.resize();
       },
       eachLayer: (callback: (layer: { getLatLng: () => { lat: number; lng: number } }) => void) => {
+        // 这里返回 WGS84 坐标，即使地图内部使用 GCJ02
         markersRef.current.forEach(marker => {
           callback({
             getLatLng: () => ({ lat: marker.getLngLat().lat, lng: marker.getLngLat().lng })
@@ -87,11 +95,12 @@ export default function MapLibreMap({ center, zoom }: MapContainerProps) {
       setUserLocation: (coords: [number, number]) => {
         const source = map.getSource('user-location') as maplibregl.GeoJSONSource;
         if (source) {
+          const [glat, glng] = wgs84ToGcj02(coords[0], coords[1]);
           source.setData({
             type: 'Feature',
             geometry: {
               type: 'Point',
-              coordinates: [coords[1], coords[0]]
+              coordinates: [glng, glat]
             },
             properties: {}
           });
@@ -329,12 +338,14 @@ export default function MapLibreMap({ center, zoom }: MapContainerProps) {
         // 将 popup 添加到引用数组中
         popupsRef.current.push(popup);
 
+        const [gcjLat, gcjLng] = wgs84ToGcj02(plantInstance.coords[0], plantInstance.coords[1]);
+
         const marker = new maplibregl.Marker({ 
           element: el,
           anchor: 'bottom', // 强制锚定底部中心
           offset: [0, 0]    // 确保没有亚像素偏移
         })
-          .setLngLat([plantInstance.coords[1], plantInstance.coords[0]])
+          .setLngLat([gcjLng, gcjLat])
           .setPopup(popup)
           .addTo(map);
         
@@ -363,8 +374,9 @@ export default function MapLibreMap({ center, zoom }: MapContainerProps) {
           marker.togglePopup();
           
           // 平滑移动到植物位置
+          const [destLat, destLng] = wgs84ToGcj02(plantInstance.coords[0], plantInstance.coords[1]);
           map.flyTo({
-            center: [plantInstance.coords[1], plantInstance.coords[0]],
+            center: [destLng, destLat],
             zoom: targetZoom,
             duration: 1000, // 动画时长 1 秒
             essential: true
@@ -622,12 +634,22 @@ export default function MapLibreMap({ center, zoom }: MapContainerProps) {
           const end = waypoints[1];
           
           try {
+            // OSRM 公共服务可能在大陆较慢，且需要 WGS84 坐标
             const response = await fetch(
               `https://router.project-osrm.org/route/v1/foot/${start.lng},${start.lat};${end.lng},${end.lat}?overview=full&geometries=geojson`
             );
             const data = await response.json();
             if (data.routes && data.routes.length > 0) {
               const route = data.routes[0].geometry;
+              
+              // 将路线中的所有 WGS84 坐标转换为 GCJ-02 以匹配底图
+              if (route.type === 'LineString') {
+                route.coordinates = route.coordinates.map((coord: number[]) => {
+                  const [glat, glng] = wgs84ToGcj02(coord[1], coord[0]);
+                  return [glng, glat];
+                });
+              }
+              
               const source = map.getSource('route') as maplibregl.GeoJSONSource;
               if (source) {
                 source.setData({
@@ -694,15 +716,17 @@ export default function MapLibreMap({ center, zoom }: MapContainerProps) {
       if (targetLayer === 'satellite') {
         // 切换到卫星图层
         if (!satelliteSource) {
-          // 直接添加在线卫星源
+          // 使用高德卫星图
           map.addSource('local-satellite', {
             type: 'raster',
             tiles: [
-              'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-              'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+              'https://webst01.is.autonavi.com/appmaptile?style=6&x={x}&y={y}&z={z}',
+              'https://webst02.is.autonavi.com/appmaptile?style=6&x={x}&y={y}&z={z}',
+              'https://webst03.is.autonavi.com/appmaptile?style=6&x={x}&y={y}&z={z}',
+              'https://webst04.is.autonavi.com/appmaptile?style=6&x={x}&y={y}&z={z}'
             ],
             tileSize: 256,
-            attribution: 'Esri',
+            attribution: '&copy; <a href="http://www.amap.com/">Amap</a>',
             minzoom: 10,
             maxzoom: 18
           });
@@ -727,16 +751,17 @@ export default function MapLibreMap({ center, zoom }: MapContainerProps) {
       } else {
         // 切换到 light 图层
         if (!lightSource) {
-          // 直接添加在线简约源
+          // 使用高德街道图
           map.addSource('local-light', {
             type: 'raster',
             tiles: [
-              'https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
-              'https://b.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
-              'https://c.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png'
+              'https://webrd01.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}',
+              'https://webrd02.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}',
+              'https://webrd03.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}',
+              'https://webrd04.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}'
             ],
             tileSize: 256,
-            attribution: '&copy; <a href="https://carto.com/attributions">CARTO</a>',
+            attribution: '&copy; <a href="http://www.amap.com/">Amap</a>',
             minzoom: 10,
             maxzoom: 18
           });
@@ -748,11 +773,10 @@ export default function MapLibreMap({ center, zoom }: MapContainerProps) {
             minzoom: 10,
             maxzoom: 18,
             paint: {
-              'raster-saturation': 0.2,
-              'raster-contrast': 0.1,
+              'raster-saturation': -0.2,
+              'raster-contrast': 0,
               'raster-brightness-min': 0,
-              'raster-brightness-max': 0.9,
-              'raster-hue-rotate': 10
+              'raster-brightness-max': 1
             }
           });
         }
