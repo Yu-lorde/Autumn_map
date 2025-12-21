@@ -29,10 +29,8 @@ export const localLightStyle: StyleSpecification = {
       tiles: [
         // 1. 优先使用本地/相对路径瓦片（GitHub Pages 或本地开发）
         '/map-tiles/light/{z}/{x}/{y}.png',
-        // 2. CartoDB Positron（纯色简约风格，CDN 加速，多个服务器提高稳定性）
-        'https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
-        'https://b.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
-        'https://c.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png'
+        // 2. CartoDB Positron（CDN 加速，参考 Leaflet 实现使用单一稳定源）
+        'https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png'
       ],
       tileSize: 256,
       attribution: '&copy; <a href="https://carto.com/attributions">CARTO</a>',
@@ -81,11 +79,8 @@ export const localSatelliteStyle: StyleSpecification = {
       tiles: [
         // 1. 优先使用本地/相对路径瓦片（GitHub Pages 或本地开发）
         '/map-tiles/satellite/{z}/{x}/{y}.jpg',
-        // 2. Esri World Imagery（多个服务器提高成功率）
-        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-        'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-        // 备用：其他 Esri 镜像
-        'https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+        // 2. Esri World Imagery（参考 Leaflet 实现使用单一稳定源）
+        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
       ],
       tileSize: 256,
       attribution: 'Esri',
@@ -110,16 +105,18 @@ export const localSatelliteStyle: StyleSpecification = {
  * 组合样式 - 同时包含 light 和 satellite 两个源
  * 用于图层切换优化：切换时只改变图层可见性，不重新下载瓦片
  */
+// 优化的组合样式 - 简化瓦片 URL，参考 Leaflet 的快速加载方式
+// 只使用最稳定的 CDN 源，减少备用 URL 数量，提高加载速度
 export const combinedMapStyle: StyleSpecification = {
   version: 8,
   sources: {
     'local-light': {
       type: 'raster',
       tiles: [
+        // 优先使用本地瓦片（如果存在）
         '/map-tiles/light/{z}/{x}/{y}.png',
-        'https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
-        'https://b.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
-        'https://c.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png'
+        // 使用 CartoDB CDN（参考 Leaflet 实现，使用单一稳定源）
+        'https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png'
       ],
       tileSize: 256,
       attribution: '&copy; <a href="https://carto.com/attributions">CARTO</a>',
@@ -129,10 +126,10 @@ export const combinedMapStyle: StyleSpecification = {
     'local-satellite': {
       type: 'raster',
       tiles: [
+        // 优先使用本地瓦片（如果存在）
         '/map-tiles/satellite/{z}/{x}/{y}.jpg',
-        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-        'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-        'https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+        // 使用 Esri 主服务器（参考 Leaflet 实现，使用单一稳定源）
+        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
       ],
       tileSize: 256,
       attribution: 'Esri',

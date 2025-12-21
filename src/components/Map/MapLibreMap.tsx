@@ -4,7 +4,7 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import { useMapStore } from '../../stores/mapStore';
 import { useMapContext } from '../../contexts/MapContext';
 import { getAllPlantInstances, plants } from '../../data/plantsData';
-import { combinedMapStyle } from '../../utils/localMapStyles';
+import { localLightStyle, localSatelliteStyle } from '../../utils/localMapStyles';
 
 interface MapContainerProps {
   center: [number, number];
@@ -17,6 +17,7 @@ export default function MapLibreMap({ center, zoom }: MapContainerProps) {
   const markersRef = useRef<maplibregl.Marker[]>([]);
   const markersMapRef = useRef<Map<string, maplibregl.Marker>>(new Map()); // 存储标记映射：plantId-locationIndex -> Marker
   const popupsRef = useRef<maplibregl.Popup[]>([]); // 存储所有 popup 实例的引用
+  const clusterMarkersRef = useRef<maplibregl.Marker[]>([]); // 聚合标记
   const navControlRef = useRef<maplibregl.NavigationControl | null>(null);
   const { currentLayer } = useMapStore();
   const { setMap, setRoutingControl } = useMapContext();
@@ -31,16 +32,39 @@ export default function MapLibreMap({ center, zoom }: MapContainerProps) {
     // 重置 popups 引用数组
     popupsRef.current = [];
 
+    // 优化：初始只加载 light 图层，参考 Leaflet 的快速加载方式
+    // 切换到 satellite 时再动态加载 satellite 源，减少初始加载时间
+    const initialStyle = currentLayer === 'light' ? localLightStyle : localSatelliteStyle;
+    
     const map = new maplibregl.Map({
       container: mapContainer.current,
-      style: combinedMapStyle, // 使用组合样式，同时包含两个源
+      style: initialStyle, // 初始只加载当前需要的图层，而不是同时加载两个
       center: [center[1], center[0]], // MapLibre 使用 [lng, lat]
       zoom: zoom,
       minZoom: 10,
-      maxZoom: 18
+      maxZoom: 18,
+      // 限制地图边界，比紫金港校区稍大一点，提供更合理的视野范围
+      // maxBounds 会限制用户移动范围，同时 MapLibre GL 也会限制在此范围内的瓦片请求
+      maxBounds: [
+        [120.0600, 30.2850], // 西南角 [lng, lat] - 比校区边界扩大约 1-2 公里
+        [120.1050, 30.3300]  // 东北角 [lng, lat] - 比校区边界扩大约 1-2 公里
+      ],
+      // 不渲染世界副本，只显示一次地图，减少瓦片加载
+      renderWorldCopies: false,
     });
 
     mapInstanceRef.current = map;
+    
+    // MapLibre GL 的瓦片加载机制说明：
+    // 1. 内置懒加载：自动只加载当前视野（viewport）范围内的瓦片
+    // 2. maxBounds 限制：限制地图移动范围，同时也会限制瓦片请求范围
+    // 3. 预加载机制：会预加载视野边缘的少量瓦片，用于平滑移动
+    // 4. 自动卸载：视野外的瓦片会自动从缓存中移除，释放内存
+    // 
+    // 因此，设置了 maxBounds 后：
+    // - 用户无法移动到边界外，所以不会请求边界外的瓦片
+    // - 即使在地图边界内，也只会加载当前视野可见的瓦片
+    // - 这样可以有效减少瓦片加载量和内存占用
     
     // 创建适配器以兼容现有的 Leaflet API
     const mapAdapter = {
@@ -320,10 +344,16 @@ export default function MapLibreMap({ center, zoom }: MapContainerProps) {
         // 将 popup 添加到引用数组中
         popupsRef.current.push(popup);
 
-        const marker = new maplibregl.Marker({ element: el })
+        const marker = new maplibregl.Marker({ 
+          element: el,
+          anchor: 'center' // 确保标记中心点对齐，修复缩放时位置偏移
+        })
           .setLngLat([plantInstance.coords[1], plantInstance.coords[0]])
           .setPopup(popup)
           .addTo(map);
+        
+        // 存储植物实例数据到标记元素上，用于聚合
+        (el as any)._plantInstance = plantInstance;
 
         // 存储标记映射，用于后续闪烁
         const markerKey = `${plantInstance.plantId}-${plantInstance.locationIndex}`;
@@ -364,6 +394,231 @@ export default function MapLibreMap({ center, zoom }: MapContainerProps) {
 
         markersRef.current.push(marker);
       });
+
+      // 标记聚合功能
+      const updateMarkerClustering = () => {
+        const currentZoom = map.getZoom();
+        
+        // 缩放级别大于 14 时显示所有标记，不聚合
+        if (currentZoom > 14) {
+          // 隐藏所有聚合标记
+          clusterMarkersRef.current.forEach(clusterMarker => {
+            clusterMarker.remove();
+          });
+          clusterMarkersRef.current = [];
+          
+          // 显示所有单个标记
+          markersRef.current.forEach(marker => {
+            const element = marker.getElement();
+            if (element) {
+              element.style.display = 'block';
+            }
+          });
+          return;
+        }
+
+        // 清除旧的聚合标记
+        clusterMarkersRef.current.forEach(clusterMarker => {
+          clusterMarker.remove();
+        });
+        clusterMarkersRef.current = [];
+
+        // 计算聚合 - 使用改进的聚类算法
+        const clusters: Array<Array<{ marker: maplibregl.Marker; plantInstance: any; point: { x: number; y: number } }>> = [];
+        const clusterRadius = 60; // 像素距离阈值，根据缩放级别调整
+
+        // 获取所有标记的屏幕坐标
+        const markerPoints = markersRef.current.map(marker => {
+          const element = marker.getElement();
+          if (!element) return null;
+          
+          const plantInstance = (element as any)._plantInstance;
+          if (!plantInstance) return null;
+
+          const lngLat = marker.getLngLat();
+          const point = map.project(lngLat);
+          
+          return { marker, plantInstance, point };
+        }).filter(Boolean) as Array<{ marker: maplibregl.Marker; plantInstance: any; point: { x: number; y: number } }>;
+
+        // 简单的距离聚类算法
+        markerPoints.forEach(markerPoint => {
+          let addedToCluster = false;
+          
+          // 查找最近的聚合
+          for (const cluster of clusters) {
+            const clusterCenter = {
+              x: cluster.reduce((sum, m) => sum + m.point.x, 0) / cluster.length,
+              y: cluster.reduce((sum, m) => sum + m.point.y, 0) / cluster.length
+            };
+            
+            const distance = Math.sqrt(
+              Math.pow(markerPoint.point.x - clusterCenter.x, 2) + 
+              Math.pow(markerPoint.point.y - clusterCenter.y, 2)
+            );
+            
+            if (distance < clusterRadius) {
+              cluster.push(markerPoint);
+              addedToCluster = true;
+              break;
+            }
+          }
+          
+          if (!addedToCluster) {
+            clusters.push([markerPoint]);
+          }
+        });
+
+        // 创建聚合标记
+        clusters.forEach((clusterMarkers) => {
+          if (clusterMarkers.length === 1) {
+            // 只有一个标记，直接显示
+            const element = clusterMarkers[0].marker.getElement();
+            if (element) {
+              element.style.display = 'block';
+            }
+          } else {
+            // 多个标记，创建聚合标记
+            // 计算聚合中心点（所有标记的平均位置）
+            const avgLng = clusterMarkers.reduce((sum, m) => sum + m.marker.getLngLat().lng, 0) / clusterMarkers.length;
+            const avgLat = clusterMarkers.reduce((sum, m) => sum + m.marker.getLngLat().lat, 0) / clusterMarkers.length;
+            
+            const clusterEl = document.createElement('div');
+            clusterEl.className = 'plant-cluster-marker';
+            clusterEl.style.cssText = `
+              width: 40px;
+              height: 40px;
+              border-radius: 50%;
+              background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+              border: 3px solid white;
+              box-shadow: 0 4px 12px rgba(249, 115, 22, 0.5);
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              color: white;
+              font-weight: bold;
+              font-size: 14px;
+              cursor: pointer;
+              position: relative;
+            `;
+            clusterEl.textContent = clusterMarkers.length.toString();
+
+            // 创建聚合标记的 popup（显示所有聚合的植物）
+            const clusterPopupContainer = document.createElement('div');
+            clusterPopupContainer.style.cssText = `
+              font-family: 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+              padding: 0;
+              min-width: 200px;
+              max-height: 400px;
+              overflow-y: auto;
+            `;
+
+            const clusterHeader = document.createElement('div');
+            clusterHeader.style.cssText = `
+              background: linear-gradient(135deg, #f97316 0%, #fb923c 100%);
+              color: white;
+              padding: 12px 16px;
+              border-radius: 8px 8px 0 0;
+              font-weight: bold;
+              font-size: 15px;
+            `;
+            clusterHeader.textContent = `共 ${clusterMarkers.length} 个植物位置`;
+
+            const clusterContent = document.createElement('div');
+            clusterContent.style.cssText = `
+              background: white;
+              padding: 8px;
+              border-radius: 0 0 8px 8px;
+              border: 2px solid #f97316;
+              border-top: none;
+            `;
+
+            clusterMarkers.forEach(({ plantInstance }) => {
+              const plantData = plants.find(p => p.id === plantInstance.plantId);
+              const locationCount = plantData?.locations.length || 1;
+              const displayName = locationCount > 1 
+                ? `${plantInstance.name}-${plantInstance.locationIndex + 1}`
+                : plantInstance.name;
+
+              const itemDiv = document.createElement('div');
+              itemDiv.style.cssText = `
+                padding: 8px;
+                margin-bottom: 4px;
+                border-radius: 4px;
+                background: #fffbeb;
+                cursor: pointer;
+                transition: background 0.2s;
+              `;
+              itemDiv.textContent = `🍂 ${displayName}`;
+              
+              itemDiv.addEventListener('mouseenter', () => {
+                itemDiv.style.background = '#ffedd5';
+              });
+              itemDiv.addEventListener('mouseleave', () => {
+                itemDiv.style.background = '#fffbeb';
+              });
+              
+              itemDiv.addEventListener('click', () => {
+                // 关闭聚合 popup
+                clusterPopup.remove();
+                // 显示对应的单个标记
+                clusterMarkers.forEach(({ marker }) => {
+                  const element = marker.getElement();
+                  if (element) {
+                    element.style.display = 'block';
+                  }
+                });
+                // 触发对应标记的点击事件
+                const targetMarker = clusterMarkers.find(({ plantInstance: pi }) => 
+                  pi.plantId === plantInstance.plantId && 
+                  pi.locationIndex === plantInstance.locationIndex
+                );
+                if (targetMarker) {
+                  const element = targetMarker.marker.getElement();
+                  if (element) {
+                    element.click();
+                  }
+                }
+              });
+
+              clusterContent.appendChild(itemDiv);
+            });
+
+            clusterPopupContainer.appendChild(clusterHeader);
+            clusterPopupContainer.appendChild(clusterContent);
+
+            const clusterPopup = new maplibregl.Popup({
+              offset: 25,
+              closeButton: true,
+              closeOnClick: false,
+              className: 'plant-popup'
+            }).setDOMContent(clusterPopupContainer);
+
+            const clusterMarker = new maplibregl.Marker({
+              element: clusterEl,
+              anchor: 'center'
+            })
+              .setLngLat([avgLng, avgLat])
+              .setPopup(clusterPopup)
+              .addTo(map);
+            
+            // 点击聚合标记时切换 popup
+            clusterEl.addEventListener('click', () => {
+              clusterMarker.togglePopup();
+            });
+
+            clusterMarkersRef.current.push(clusterMarker);
+          }
+        });
+      };
+
+      // 初始聚合
+      updateMarkerClustering();
+
+      // 监听地图缩放和移动事件，更新聚合
+      // 注意：当 map.remove() 被调用时，所有事件监听器会自动清理
+      map.on('zoom', updateMarkerClustering);
+      map.on('moveend', updateMarkerClustering);
 
       // 设置路由控制适配器
       const routingControlAdapter = {
@@ -411,49 +666,122 @@ export default function MapLibreMap({ center, zoom }: MapContainerProps) {
     navControlRef.current = nav;
 
     return () => {
+      // 清理聚合标记
+      clusterMarkersRef.current.forEach(clusterMarker => {
+        clusterMarker.remove();
+      });
+      clusterMarkersRef.current = [];
+      
+      // 清理地图实例（会自动清理所有事件监听器）
       if (mapInstanceRef.current) {
         mapInstanceRef.current.remove();
         mapInstanceRef.current = null;
       }
+      
       // 清理 popups 引用数组
       popupsRef.current = [];
     };
   }, [center, zoom]);
 
-  // 优化：切换图层时只改变图层可见性，不重新下载瓦片
-  // 这样切换会非常快，因为瓦片已经缓存了
+  // 优化：动态加载图层，参考 Leaflet 的快速加载方式
+  // 初始只加载当前图层，切换到另一个图层时动态加载
   useEffect(() => {
     if (!mapInstanceRef.current || !mapLoaded) return;
 
     const map = mapInstanceRef.current;
     
-    // 切换图层可见性的辅助函数
-    const switchLayerVisibility = (map: maplibregl.Map, layer: 'satellite' | 'light') => {
+    // 图层切换处理函数（定义在 useEffect 内部）
+    const handleLayerSwitch = (targetLayer: 'satellite' | 'light') => {
+      const lightSource = map.getSource('local-light');
+      const satelliteSource = map.getSource('local-satellite');
       const lightLayer = map.getLayer('local-light-layer');
       const satelliteLayer = map.getLayer('local-satellite-layer');
       
-      if (!lightLayer || !satelliteLayer) return;
-      
-      // 切换图层可见性
-      if (layer === 'satellite') {
-        map.setLayoutProperty('local-light-layer', 'visibility', 'none');
-        map.setLayoutProperty('local-satellite-layer', 'visibility', 'visible');
+      if (targetLayer === 'satellite') {
+        // 切换到卫星图层
+        if (!satelliteSource) {
+          // 如果卫星源不存在，动态添加（延迟加载）
+          map.addSource('local-satellite', {
+            type: 'raster',
+            tiles: [
+              '/map-tiles/satellite/{z}/{x}/{y}.jpg',
+              'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+            ],
+            tileSize: 256,
+            attribution: 'Esri',
+            minzoom: 10,
+            maxzoom: 18
+          });
+          
+          map.addLayer({
+            id: 'local-satellite-layer',
+            type: 'raster',
+            source: 'local-satellite',
+            minzoom: 10,
+            maxzoom: 18
+          });
+        }
+        
+        // 隐藏 light 图层，显示 satellite 图层
+        if (lightLayer) {
+          map.setLayoutProperty('local-light-layer', 'visibility', 'none');
+        }
+        const newSatelliteLayer = map.getLayer('local-satellite-layer');
+        if (newSatelliteLayer) {
+          map.setLayoutProperty('local-satellite-layer', 'visibility', 'visible');
+        }
       } else {
-        map.setLayoutProperty('local-light-layer', 'visibility', 'visible');
-        map.setLayoutProperty('local-satellite-layer', 'visibility', 'none');
+        // 切换到 light 图层
+        if (!lightSource) {
+          // 如果 light 源不存在，动态添加（延迟加载）
+          map.addSource('local-light', {
+            type: 'raster',
+            tiles: [
+              '/map-tiles/light/{z}/{x}/{y}.png',
+              'https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png'
+            ],
+            tileSize: 256,
+            attribution: '&copy; <a href="https://carto.com/attributions">CARTO</a>',
+            minzoom: 10,
+            maxzoom: 18
+          });
+          
+          map.addLayer({
+            id: 'local-light-layer',
+            type: 'raster',
+            source: 'local-light',
+            minzoom: 10,
+            maxzoom: 18,
+            paint: {
+              'raster-saturation': 0.2,
+              'raster-contrast': 0.1,
+              'raster-brightness-min': 0,
+              'raster-brightness-max': 0.9,
+              'raster-hue-rotate': 10
+            }
+          });
+        }
+        
+        // 隐藏 satellite 图层，显示 light 图层
+        if (satelliteLayer) {
+          map.setLayoutProperty('local-satellite-layer', 'visibility', 'none');
+        }
+        const newLightLayer = map.getLayer('local-light-layer');
+        if (newLightLayer) {
+          map.setLayoutProperty('local-light-layer', 'visibility', 'visible');
+        }
       }
     };
     
     // 确保样式已加载
     if (!map.isStyleLoaded()) {
-      // 如果样式还没加载完，等待样式加载完成
       map.once('style.load', () => {
-        switchLayerVisibility(map, currentLayer);
+        handleLayerSwitch(currentLayer);
       });
       return;
     }
     
-    switchLayerVisibility(map, currentLayer);
+    handleLayerSwitch(currentLayer);
   }, [currentLayer, mapLoaded]);
 
   return (
