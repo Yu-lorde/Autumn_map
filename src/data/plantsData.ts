@@ -37,7 +37,7 @@ export const plants: Plant[] = [
     ]
   },
   {
-    id: 'p2',
+    id: 'P2',
     name: '红枫',
     latin: 'Acer palmatum Atropurpureum',
     tag: '红叶',
@@ -50,7 +50,7 @@ export const plants: Plant[] = [
     ]
   },
   {
-    id: 'p3',
+    id: 'P3',
     name: '法国梧桐（二球悬铃木）',
     latin: 'Platanus orientalis',
     tag: '清冷',
@@ -63,7 +63,7 @@ export const plants: Plant[] = [
     ]
   },
   {
-    id: 'p4',
+    id: 'P4',
     name: '桂花（木樨）',
     latin: 'Osmanthus fragrans',
     tag: '馥郁',
@@ -76,7 +76,7 @@ export const plants: Plant[] = [
     ]
   },
   {
-    id: 'p5',
+    id: 'P5',
     name: '鹅掌楸',
     latin: 'Liriodendron chinense',
     tag: '清雅',
@@ -89,7 +89,7 @@ export const plants: Plant[] = [
     ]
   },
   {
-    id: 'p6',
+    id: 'P6',
     name: '金钱松',
     latin: 'Pseudolarix amabilis',
     tag: '别致',
