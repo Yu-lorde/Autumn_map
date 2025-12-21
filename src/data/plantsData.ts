@@ -3,16 +3,23 @@ import { withBase } from '../utils/publicUrl';
 
 /**
  * 获取植物图片路径
- * 默认使用 .jpg 扩展名，PlantImage 组件会自动尝试 .png, .webp 等其他格式
- * 优先使用本地图片：plant-images/{plantId}-{locationIndex}.jpg（会自动补齐 base）
+ * 默认使用 .jpg 扩展名；若某些图片实际为 .png，则在这里直接指定，避免先 404 再重试造成“无效加载”
+ * 优先使用本地图片：plant-images/{plantId}-{locationIndex}.{ext}（会自动补齐 base）
  * 如果本地图片不存在，PlantImage 组件会自动使用备用在线图片
  */
 function getPlantImagePath(plantId: string, locationIndex: number): string {
-  return withBase(`plant-images/${plantId}-${locationIndex}.jpg`);
+  const extMap: Record<string, string> = {
+    // 这些本地图片目前为 png（若后续统一转 jpg，可删掉映射）
+    p1: '.png',
+    P2: '.png',
+    P3: '.png',
+  };
+  const ext = extMap[plantId] ?? '.jpg';
+  return withBase(`plant-images/${plantId}-${locationIndex}${ext}`);
 }
 
 // 植物数据：每个植物可以有多个位置，共享名称、说明等信息
-// 注意：img 字段会自动优先使用本地图片（plant-images/{plantId}-{locationIndex}.jpg）
+// 注意：img 字段会自动优先使用本地图片（plant-images/{plantId}-{locationIndex}.{ext}）
 // 如果本地图片不存在，PlantImage 组件会自动使用备用在线图片URL
 export const plants: Plant[] = [
   {

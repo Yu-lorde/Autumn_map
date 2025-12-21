@@ -57,6 +57,8 @@ export default function PlantImage({
       src={imgSrc}
       alt={alt}
       className={className}
+      loading="lazy"
+      decoding="async"
       onError={handleError}
     />
   );
