@@ -1,10 +1,10 @@
 'use strict';
-const fetch = require('node-fetch');
-const fs = require('fs');
+// Use global fetch available in Node 18+ to avoid extra deps
+import fs from 'fs';
 
 // samples: pairs of coords [lat, lng]
 // Default: use plants sample points from project if available; otherwise use a small hardcoded list.
-const samplePairs = require('./route-samples.json');
+const samplePairs = JSON.parse(fs.readFileSync(new URL('./route-samples.json', import.meta.url), 'utf8'));
 
 function haversine(a, b) {
   const toRad = deg => (deg * Math.PI) / 180;
