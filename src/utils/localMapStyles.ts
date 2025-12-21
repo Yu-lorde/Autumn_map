@@ -2,10 +2,10 @@ import type { StyleSpecification } from 'maplibre-gl';
 
 /**
  * 浙大紫金港校区本地地图样式配置
- * 优先使用本地资源，提高加载速度
+ * 优先使用国内 CDN 资源，提高大陆地区加载速度
  */
 
-// 浙大紫金港校区中心坐标和范围
+// 浙大紫金港校区中心坐标和范围 (WGS-84)
 export const ZJU_CENTER: [number, number] = [30.3081, 120.0827]; // [lat, lng]
 export const ZJU_BOUNDS: [[number, number], [number, number]] = [
   [30.2950, 120.0700], // 西南角
@@ -13,16 +13,10 @@ export const ZJU_BOUNDS: [[number, number], [number, number]] = [
 ];
 
 /**
- * 本地 light 样式 - 优先使用 GitHub 上的瓦片缓存
+ * 本地 light 样式 - 使用高德地图瓦片
  * 
- * 瓦片缓存策略：
- * - 紫金港校区的瓦片（zoom 15-16）已提交到 git，可以直接从 GitHub 加载
- * - 优先使用本地缓存，无需访问外部地图库，加载速度更快
- * - 如果本地瓦片不存在，自动回退到在线 API
- * 
- * 加载顺序（MapLibre GL 会按顺序尝试，使用第一个可用的）：
- * 1. 本地/相对路径瓦片（GitHub Pages 或本地开发）- 最快，无需外部 API
- * 2. CartoDB Positron（CDN 加速，备用在线源）
+ * 注意：高德地图使用 GCJ-02 坐标系，而原始数据为 WGS-84。
+ * 在渲染标记和路线时需要进行坐标转换。
  */
 export const localLightStyle: StyleSpecification = {
   version: 8,
@@ -30,13 +24,13 @@ export const localLightStyle: StyleSpecification = {
     'local-light': {
       type: 'raster',
       tiles: [
-        // 直接使用高清在线源，消除本地 404 延迟
-        'https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
-        'https://b.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
-        'https://c.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png'
+        'https://webrd01.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}',
+        'https://webrd02.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}',
+        'https://webrd03.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}',
+        'https://webrd04.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}'
       ],
       tileSize: 256,
-      attribution: '&copy; <a href="https://carto.com/attributions">CARTO</a>',
+      attribution: '&copy; <a href="http://www.amap.com/">Amap</a>',
       minzoom: 10,
       maxzoom: 18
     }
@@ -56,9 +50,10 @@ export const localLightStyle: StyleSpecification = {
       minzoom: 10,
       maxzoom: 18,
       paint: {
-        'raster-saturation': 0.2,
-        'raster-contrast': 0.1,
-        'raster-hue-rotate': 10
+        'raster-saturation': -0.2, // 稍微降低饱和度以匹配简约风格
+        'raster-contrast': 0,
+        'raster-brightness-min': 0,
+        'raster-brightness-max': 1
       }
     }
   ],
@@ -67,16 +62,7 @@ export const localLightStyle: StyleSpecification = {
 };
 
 /**
- * 本地卫星样式 - 优先使用 GitHub 上的瓦片缓存
- * 
- * 瓦片缓存策略：
- * - 紫金港校区的卫星瓦片（zoom 15-16）已提交到 git，可以直接从 GitHub 加载
- * - 优先使用本地缓存，无需访问外部地图库，加载速度更快
- * - 如果本地瓦片不存在，自动回退到在线 API
- * 
- * 加载顺序：
- * 1. 本地/相对路径瓦片（最快，无需外部 API）
- * 2. Esri World Imagery（备用在线源）
+ * 本地卫星样式 - 使用高德卫星图瓦片
  */
 export const localSatelliteStyle: StyleSpecification = {
   version: 8,
@@ -84,12 +70,13 @@ export const localSatelliteStyle: StyleSpecification = {
     'local-satellite': {
       type: 'raster',
       tiles: [
-        // 直接使用高清在线源
-        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-        'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+        'https://webst01.is.autonavi.com/appmaptile?style=6&x={x}&y={y}&z={z}',
+        'https://webst02.is.autonavi.com/appmaptile?style=6&x={x}&y={y}&z={z}',
+        'https://webst03.is.autonavi.com/appmaptile?style=6&x={x}&y={y}&z={z}',
+        'https://webst04.is.autonavi.com/appmaptile?style=6&x={x}&y={y}&z={z}'
       ],
       tileSize: 256,
-      attribution: 'Esri',
+      attribution: '&copy; <a href="http://www.amap.com/">Amap</a>',
       minzoom: 10,
       maxzoom: 18
     }
@@ -109,33 +96,33 @@ export const localSatelliteStyle: StyleSpecification = {
 
 /**
  * 组合样式 - 同时包含 light 和 satellite 两个源
- * 用于图层切换优化：切换时只改变图层可见性，不重新下载瓦片
  */
-// 优化的组合样式 - 简化瓦片 URL，参考 Leaflet 的快速加载方式
-// 只使用最稳定的 CDN 源，减少备用 URL 数量，提高加载速度
 export const combinedMapStyle: StyleSpecification = {
   version: 8,
   sources: {
     'local-light': {
       type: 'raster',
       tiles: [
-        'https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
-        'https://b.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
-        'https://c.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png'
+        'https://webrd01.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}',
+        'https://webrd02.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}',
+        'https://webrd03.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}',
+        'https://webrd04.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}'
       ],
       tileSize: 256,
-      attribution: '&copy; <a href="https://carto.com/attributions">CARTO</a>',
+      attribution: '&copy; <a href="http://www.amap.com/">Amap</a>',
       minzoom: 10,
       maxzoom: 18
     },
     'local-satellite': {
       type: 'raster',
       tiles: [
-        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-        'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+        'https://webst01.is.autonavi.com/appmaptile?style=6&x={x}&y={y}&z={z}',
+        'https://webst02.is.autonavi.com/appmaptile?style=6&x={x}&y={y}&z={z}',
+        'https://webst03.is.autonavi.com/appmaptile?style=6&x={x}&y={y}&z={z}',
+        'https://webst04.is.autonavi.com/appmaptile?style=6&x={x}&y={y}&z={z}'
       ],
       tileSize: 256,
-      attribution: 'Esri',
+      attribution: '&copy; <a href="http://www.amap.com/">Amap</a>',
       minzoom: 10,
       maxzoom: 18
     }
@@ -145,7 +132,7 @@ export const combinedMapStyle: StyleSpecification = {
       id: 'background',
       type: 'background',
       paint: {
-        'background-color': '#fff7ed' // orange-50, autumn warm bg
+        'background-color': '#fff7ed'
       }
     },
     {
@@ -155,14 +142,13 @@ export const combinedMapStyle: StyleSpecification = {
       minzoom: 10,
       maxzoom: 18,
       layout: {
-        visibility: 'visible' // 默认显示 light 图层
+        visibility: 'visible'
       },
       paint: {
-        'raster-saturation': 0.2, // 增加饱和度
-        'raster-contrast': 0.1,   // 增加对比度
+        'raster-saturation': -0.2,
+        'raster-contrast': 0,
         'raster-brightness-min': 0,
-        'raster-brightness-max': 0.9,
-        'raster-hue-rotate': 10    // 稍微向暖色偏转
+        'raster-brightness-max': 1
       }
     },
     {
@@ -172,7 +158,7 @@ export const combinedMapStyle: StyleSpecification = {
       minzoom: 10,
       maxzoom: 18,
       layout: {
-        visibility: 'none' // 默认隐藏 satellite 图层
+        visibility: 'none'
       }
     }
   ],
