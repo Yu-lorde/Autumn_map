@@ -220,407 +220,157 @@ export default function MapLibreMap({ center, zoom }: MapContainerProps) {
         }
       });
       
-      // 添加植物标记（每个位置都会创建一个标记）
+      // 使用 GeoJSON source + MapLibre 的 cluster 功能来替换基于 DOM 的大量 Marker（性能优化）
       const plantInstances = getAllPlantInstances();
-      
-      plantInstances.forEach(plantInstance => {
-        // 获取该植物的总位置数，用于显示编号
-        const plantData = plants.find(p => p.id === plantInstance.plantId);
-        const locationCount = plantData?.locations.length || 1;
-        const displayName = locationCount > 1 
-          ? `${plantInstance.name}-${plantInstance.locationIndex + 1}`
-          : plantInstance.name;
-        // 外层容器：由 MapLibre 控制定位，不添加 transform
-        const el = document.createElement('div');
-        el.className = 'plant-marker';
-        el.style.width = '30px';
-        el.style.height = '30px';
-        el.style.cursor = 'pointer';
-        el.style.position = 'relative';
-        
-        // 内层元素：用于显示和动画，不干扰 MapLibre 的定位
-        const innerEl = document.createElement('div');
-        innerEl.style.width = '100%';
-        innerEl.style.height = '100%';
-        innerEl.style.borderRadius = '50%';
-        innerEl.style.background = 'linear-gradient(135deg, #f97316 0%, #fb923c 100%)'; // 明亮的橙色渐变
-        innerEl.style.border = '3px solid white';
-        innerEl.style.boxShadow = '0 3px 8px rgba(249, 115, 22, 0.4)';
-        innerEl.style.transform = 'scale(1)'; // 初始缩放
-        innerEl.style.transition = 'transform 0.3s ease-in-out'; // 添加过渡效果
-        innerEl.style.display = 'flex';
-        innerEl.style.alignItems = 'center';
-        innerEl.style.justifyContent = 'center';
-        innerEl.style.color = 'white';
-        innerEl.style.fontSize = '14px';
-        innerEl.innerHTML = '🍂';
-        
-        // 存储内层元素的引用，用于后续闪烁动画
-        (innerEl as any)._isInnerElement = true;
-        el.appendChild(innerEl);
 
-        // 创建美观的 popup 内容（使用 DOM 元素避免 XSS 风险）
-        const popupContainer = document.createElement('div');
-        popupContainer.style.cssText = `
-          font-family: 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
-          padding: 0;
-          min-width: 180px;
-        `;
+      const features = plantInstances.map(pi => ({
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [pi.coords[1], pi.coords[0]] },
+        properties: {
+          plantId: pi.plantId,
+          locationIndex: pi.locationIndex,
+          name: pi.name,
+          latin: pi.latin,
+          desc: pi.description,
+          emoji: '🍂'
+        }
+      }));
 
-        // 头部区域
-        const headerDiv = document.createElement('div');
-        headerDiv.style.cssText = `
-          background: linear-gradient(135deg, #f97316 0%, #fb923c 100%);
-          color: white;
-          padding: 12px 16px;
-          border-radius: 8px 8px 0 0;
-          font-weight: bold;
-          font-size: 15px;
-          display: flex;
-          align-items: center;
-          gap: 8px;
-        `;
-        
-        const emojiSpan = document.createElement('span');
-        emojiSpan.style.fontSize = '18px';
-        emojiSpan.textContent = '🍂';
-        
-        const nameSpan = document.createElement('span');
-        nameSpan.textContent = displayName; // 使用 textContent 防止 XSS
-        
-        headerDiv.appendChild(emojiSpan);
-        headerDiv.appendChild(nameSpan);
-
-        // 内容区域
-        const contentDiv = document.createElement('div');
-        contentDiv.style.cssText = `
-          background: white;
-          padding: 10px 16px 12px;
-          border-radius: 0 0 8px 8px;
-          border: 2px solid #f97316;
-          border-top: none;
-          box-shadow: 0 4px 12px rgba(249, 115, 22, 0.15);
-        `;
-        
-        const latinDiv = document.createElement('div');
-        latinDiv.style.cssText = `
-          color: #92400e;
-          font-size: 11px;
-          font-style: italic;
-          margin-bottom: 6px;
-          text-transform: uppercase;
-          letter-spacing: 0.5px;
-        `;
-        latinDiv.textContent = plantInstance.latin; // 使用 textContent 防止 XSS
-        
-        const descriptionDiv = document.createElement('div');
-        descriptionDiv.style.cssText = `
-          color: #78350f;
-          font-size: 12px;
-          line-height: 1.4;
-          display: -webkit-box;
-          -webkit-line-clamp: 2;
-          -webkit-box-orient: vertical;
-          overflow: hidden;
-        `;
-        const descriptionText = plantInstance.description.length > 60 
-          ? plantInstance.description.substring(0, 60) + '...'
-          : plantInstance.description;
-        descriptionDiv.textContent = descriptionText; // 使用 textContent 防止 XSS
-        
-        contentDiv.appendChild(latinDiv);
-        contentDiv.appendChild(descriptionDiv);
-        
-        popupContainer.appendChild(headerDiv);
-        popupContainer.appendChild(contentDiv);
-
-        const popup = new maplibregl.Popup({ 
-          offset: 25,
-          closeButton: true,
-          closeOnClick: false,
-          className: 'plant-popup'
-        }).setDOMContent(popupContainer);
-
-        // 将 popup 添加到引用数组中
-        popupsRef.current.push(popup);
-
-        const marker = new maplibregl.Marker({ 
-          element: el,
-          anchor: 'center' // 确保标记中心点对齐，修复缩放时位置偏移
-        })
-          .setLngLat([plantInstance.coords[1], plantInstance.coords[0]])
-          .setPopup(popup)
-          .addTo(map);
-        
-        // 存储植物实例数据到标记元素上，用于聚合
-        (el as any)._plantInstance = plantInstance;
-
-        // 存储标记映射，用于后续闪烁
-        const markerKey = `${plantInstance.plantId}-${plantInstance.locationIndex}`;
-        markersMapRef.current.set(markerKey, marker);
-
-        // 添加点击事件：移动地图到植物位置并显示气泡
-        el.addEventListener('click', () => {
-          // 关闭其他已打开的 popup（使用 ref 中维护的实例引用）
-          popupsRef.current.forEach((existingPopup) => {
-            if (existingPopup !== popup && existingPopup.isOpen()) {
-              existingPopup.remove();
-            }
-          });
-          
-          // 获取当前缩放级别，如果已经比较大了就不需要再放大太多
-          const currentZoom = map.getZoom();
-          // 目标缩放级别：如果当前缩放小于15，则放大到15；否则只放大到当前级别+1，但不超过16
-          const targetZoom = currentZoom < 15 ? 15 : Math.min(currentZoom + 1, 16);
-          
-          // 先打开popup，这样在flyTo过程中它会跟随标记移动
-          marker.togglePopup();
-          
-          // 平滑移动到植物位置
-          map.flyTo({
-            center: [plantInstance.coords[1], plantInstance.coords[0]],
-            zoom: targetZoom,
-            duration: 1000, // 动画时长 1 秒
-            essential: true
-          });
-          
-          // 在flyTo完成后，确保popup仍然打开
-          map.once('moveend', () => {
-            if (!popup.isOpen()) {
-              marker.togglePopup();
-            }
-          });
+      // 添加 GeoJSON source（开启聚合）
+      if (!map.getSource('plants')) {
+        map.addSource('plants', {
+          type: 'geojson',
+          data: { type: 'FeatureCollection', features },
+          cluster: true,
+          clusterMaxZoom: 14,
+          clusterRadius: 50
         });
 
-        markersRef.current.push(marker);
-      });
+        // 聚合圈层
+        map.addLayer({
+          id: 'clusters',
+          type: 'circle',
+          source: 'plants',
+          filter: ['has', 'point_count'],
+          paint: {
+            'circle-color': ['step', ['get', 'point_count'], '#f97316', 10, '#fb923c', 30, '#ea580c'],
+            'circle-radius': ['step', ['get', 'point_count'], 18, 10, 22, 30, 28],
+            'circle-stroke-width': 2,
+            'circle-stroke-color': '#fff'
+          }
+        });
 
-      // 标记聚合功能
-      const updateMarkerClustering = () => {
-        const currentZoom = map.getZoom();
-        
-        // 缩放级别大于 14 时显示所有标记，不聚合
-        if (currentZoom > 14) {
-          // 隐藏所有聚合标记
-          clusterMarkersRef.current.forEach(clusterMarker => {
-            clusterMarker.remove();
-          });
-          clusterMarkersRef.current = [];
-          
-          // 显示所有单个标记
-          markersRef.current.forEach(marker => {
-            const element = marker.getElement();
-            if (element) {
-              element.style.display = 'block';
-            }
-          });
-          return;
+        // 聚合计数文字
+        map.addLayer({
+          id: 'cluster-count',
+          type: 'symbol',
+          source: 'plants',
+          filter: ['has', 'point_count'],
+          layout: {
+            'text-field': ['get', 'point_count_abbreviated'],
+            'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+            'text-size': 12
+          },
+          paint: {
+            'text-color': '#fff'
+          }
+        });
+
+        // 非聚合点（单个植物）
+        map.addLayer({
+          id: 'unclustered-point',
+          type: 'symbol',
+          source: 'plants',
+          filter: ['!', ['has', 'point_count']],
+          layout: {
+            'icon-image': 'plant-emoji',
+            'icon-size': 0.9,
+            'icon-allow-overlap': true
+          }
+        });
+
+        // 注册一个简单的 canvas / image 作为图标（使用 emoji 渲染到 canvas）
+        if (!map.hasImage('plant-emoji')) {
+          const size = 64;
+          const canvas = document.createElement('canvas');
+          canvas.width = size;
+          canvas.height = size;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.fillStyle = 'transparent';
+            ctx.fillRect(0, 0, size, size);
+            ctx.font = '40px serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('🍂', size / 2, size / 2 + 2);
+            map.addImage('plant-emoji', canvas);
+          }
         }
 
-        // 清除旧的聚合标记
-        clusterMarkersRef.current.forEach(clusterMarker => {
-          clusterMarker.remove();
-        });
-        clusterMarkersRef.current = [];
+        // 动态 popup（只在点击时创建并复用）
+        const popup = new maplibregl.Popup({ offset: 12, closeButton: true, closeOnClick: false });
 
-        // 计算聚合 - 使用改进的聚类算法
-        const clusters: Array<Array<{ marker: maplibregl.Marker; plantInstance: any; point: { x: number; y: number } }>> = [];
-        const clusterRadius = 60; // 像素距离阈值，根据缩放级别调整
-
-        // 获取所有标记的屏幕坐标
-        const markerPoints = markersRef.current.map(marker => {
-          const element = marker.getElement();
-          if (!element) return null;
-          
-          const plantInstance = (element as any)._plantInstance;
-          if (!plantInstance) return null;
-
-          const lngLat = marker.getLngLat();
-          const point = map.project(lngLat);
-          
-          return { marker, plantInstance, point };
-        }).filter(Boolean) as Array<{ marker: maplibregl.Marker; plantInstance: any; point: { x: number; y: number } }>;
-
-        // 简单的距离聚类算法
-        markerPoints.forEach(markerPoint => {
-          let addedToCluster = false;
-          
-          // 查找最近的聚合
-          for (const cluster of clusters) {
-            const clusterCenter = {
-              x: cluster.reduce((sum, m) => sum + m.point.x, 0) / cluster.length,
-              y: cluster.reduce((sum, m) => sum + m.point.y, 0) / cluster.length
-            };
-            
-            const distance = Math.sqrt(
-              Math.pow(markerPoint.point.x - clusterCenter.x, 2) + 
-              Math.pow(markerPoint.point.y - clusterCenter.y, 2)
-            );
-            
-            if (distance < clusterRadius) {
-              cluster.push(markerPoint);
-              addedToCluster = true;
-              break;
-            }
-          }
-          
-          if (!addedToCluster) {
-            clusters.push([markerPoint]);
-          }
-        });
-
-        // 创建聚合标记
-        clusters.forEach((clusterMarkers) => {
-          if (clusterMarkers.length === 1) {
-            // 只有一个标记，直接显示
-            const element = clusterMarkers[0].marker.getElement();
-            if (element) {
-              element.style.display = 'block';
-            }
-          } else {
-            // 多个标记，创建聚合标记
-            // 计算聚合中心点（所有标记的平均位置）
-            const avgLng = clusterMarkers.reduce((sum, m) => sum + m.marker.getLngLat().lng, 0) / clusterMarkers.length;
-            const avgLat = clusterMarkers.reduce((sum, m) => sum + m.marker.getLngLat().lat, 0) / clusterMarkers.length;
-            
-            const clusterEl = document.createElement('div');
-            clusterEl.className = 'plant-cluster-marker';
-            clusterEl.style.cssText = `
-              width: 40px;
-              height: 40px;
-              border-radius: 50%;
-              background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
-              border: 3px solid white;
-              box-shadow: 0 4px 12px rgba(249, 115, 22, 0.5);
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              color: white;
-              font-weight: bold;
-              font-size: 14px;
-              cursor: pointer;
-              position: relative;
-            `;
-            clusterEl.textContent = clusterMarkers.length.toString();
-
-            // 创建聚合标记的 popup（显示所有聚合的植物）
-            const clusterPopupContainer = document.createElement('div');
-            clusterPopupContainer.style.cssText = `
-              font-family: 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
-              padding: 0;
-              min-width: 200px;
-              max-height: 400px;
-              overflow-y: auto;
-            `;
-
-            const clusterHeader = document.createElement('div');
-            clusterHeader.style.cssText = `
-              background: linear-gradient(135deg, #f97316 0%, #fb923c 100%);
-              color: white;
-              padding: 12px 16px;
-              border-radius: 8px 8px 0 0;
-              font-weight: bold;
-              font-size: 15px;
-            `;
-            clusterHeader.textContent = `共 ${clusterMarkers.length} 个植物位置`;
-
-            const clusterContent = document.createElement('div');
-            clusterContent.style.cssText = `
-              background: white;
-              padding: 8px;
-              border-radius: 0 0 8px 8px;
-              border: 2px solid #f97316;
-              border-top: none;
-            `;
-
-            clusterMarkers.forEach(({ plantInstance }) => {
-              const plantData = plants.find(p => p.id === plantInstance.plantId);
-              const locationCount = plantData?.locations.length || 1;
-              const displayName = locationCount > 1 
-                ? `${plantInstance.name}-${plantInstance.locationIndex + 1}`
-                : plantInstance.name;
-
-              const itemDiv = document.createElement('div');
-              itemDiv.style.cssText = `
-                padding: 8px;
-                margin-bottom: 4px;
-                border-radius: 4px;
-                background: #fffbeb;
-                cursor: pointer;
-                transition: background 0.2s;
-              `;
-              itemDiv.textContent = `🍂 ${displayName}`;
-              
-              itemDiv.addEventListener('mouseenter', () => {
-                itemDiv.style.background = '#ffedd5';
-              });
-              itemDiv.addEventListener('mouseleave', () => {
-                itemDiv.style.background = '#fffbeb';
-              });
-              
-              itemDiv.addEventListener('click', () => {
-                // 关闭聚合 popup
-                clusterPopup.remove();
-                // 显示对应的单个标记
-                clusterMarkers.forEach(({ marker }) => {
-                  const element = marker.getElement();
-                  if (element) {
-                    element.style.display = 'block';
-                  }
-                });
-                // 触发对应标记的点击事件
-                const targetMarker = clusterMarkers.find(({ plantInstance: pi }) => 
-                  pi.plantId === plantInstance.plantId && 
-                  pi.locationIndex === plantInstance.locationIndex
-                );
-                if (targetMarker) {
-                  const element = targetMarker.marker.getElement();
-                  if (element) {
-                    element.click();
-                  }
-                }
-              });
-
-              clusterContent.appendChild(itemDiv);
+        // 点击聚合点 => 缩放到该聚合
+        map.on('click', 'clusters', (e) => {
+          const features = map.queryRenderedFeatures(e.point, { layers: ['clusters'] });
+          const clusterId = features[0].properties?.cluster_id;
+          const source = map.getSource('plants') as maplibregl.GeoJSONSource;
+          if (source && clusterId != null) {
+            source.getClusterExpansionZoom(clusterId, (err, zoom) => {
+              if (err) return;
+              map.easeTo({ center: (features[0].geometry as any).coordinates, zoom });
             });
-
-            clusterPopupContainer.appendChild(clusterHeader);
-            clusterPopupContainer.appendChild(clusterContent);
-
-            const clusterPopup = new maplibregl.Popup({
-              offset: 25,
-              closeButton: true,
-              closeOnClick: false,
-              className: 'plant-popup'
-            }).setDOMContent(clusterPopupContainer);
-
-            const clusterMarker = new maplibregl.Marker({
-              element: clusterEl,
-              anchor: 'center'
-            })
-              .setLngLat([avgLng, avgLat])
-              .setPopup(clusterPopup)
-              .addTo(map);
-            
-            // 点击聚合标记时切换 popup
-            clusterEl.addEventListener('click', () => {
-              clusterMarker.togglePopup();
-            });
-
-            clusterMarkersRef.current.push(clusterMarker);
           }
         });
-      };
 
-      // 初始聚合
-      updateMarkerClustering();
+        // 点击单点 => 显示 popup（按需构造 DOM）
+        map.on('click', 'unclustered-point', (e) => {
+          const f = e.features && e.features[0];
+          if (!f) return;
+          const props = f.properties as any;
 
-      // 监听地图缩放和移动事件，更新聚合
-      // 注意：当 map.remove() 被调用时，所有事件监听器会自动清理
-      map.on('zoom', updateMarkerClustering);
-      map.on('moveend', updateMarkerClustering);
+          // 构造 popup DOM
+          const popupContainer = document.createElement('div');
+          popupContainer.style.cssText = `font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif; min-width: 180px;`;
 
-      // 设置路由控制适配器
+          const header = document.createElement('div');
+          header.style.cssText = `background: linear-gradient(135deg,#f97316 0%,#fb923c 100%); color: #fff; padding: 10px; border-radius: 6px 6px 0 0; font-weight:600;`;
+          header.textContent = props.name || '';
+
+          const body = document.createElement('div');
+          body.style.cssText = `background:#fff; padding:8px; border:2px solid #f97316; border-top:none;`;
+          const latin = document.createElement('div');
+          latin.style.cssText = `color:#92400e; font-size:11px; font-style:italic; margin-bottom:6px;`;
+          latin.textContent = props.latin || '';
+          const desc = document.createElement('div');
+          desc.style.cssText = `color:#78350f; font-size:12px; line-height:1.4;`;
+          desc.textContent = props.desc ? (props.desc.length > 60 ? props.desc.substring(0,60)+'...' : props.desc) : '';
+
+          body.appendChild(latin);
+          body.appendChild(desc);
+          popupContainer.appendChild(header);
+          popupContainer.appendChild(body);
+
+          popup.setLngLat((f.geometry as any).coordinates as [number, number]).setDOMContent(popupContainer).addTo(map);
+
+          // 平滑移动并调整缩放
+          const currentZoom = map.getZoom();
+          const targetZoom = currentZoom < 15 ? 15 : Math.min(currentZoom + 1, 16);
+          map.flyTo({ center: (f.geometry as any).coordinates as [number, number], zoom: targetZoom, duration: 800, essential: true });
+        });
+
+        // 更友好的鼠标样式
+        map.on('mouseenter', 'clusters', () => map.getCanvas().style.cursor = 'pointer');
+        map.on('mouseleave', 'clusters', () => map.getCanvas().style.cursor = '');
+        map.on('mouseenter', 'unclustered-point', () => map.getCanvas().style.cursor = 'pointer');
+        map.on('mouseleave', 'unclustered-point', () => map.getCanvas().style.cursor = '');
+      } else {
+        // 如果 source 已存在，仅更新数据
+        const src = map.getSource('plants') as maplibregl.GeoJSONSource;
+        src.setData({ type: 'FeatureCollection', features });
+      }
+
+      // 将 markersRef，markersMapRef，popupsRef 的使用范围缩减为备用，不再在渲染路径中创建大量 DOM 标记
       const routingControlAdapter = {
         setWaypoints: async (waypoints: { lat: number; lng: number }[]) => {
           if (waypoints.length < 2) return;
