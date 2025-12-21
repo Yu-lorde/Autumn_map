@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import type { PlantInstance } from '../../data/plantsData';
 import { plants } from '../../data/plantsData';
+import PlantImage from './PlantImage';
+import { getPlantImageFallback } from '../../utils/plantImageFallbacks';
+import ImageModal from './ImageModal';
 
 interface PlantCardProps {
   plant: PlantInstance;
@@ -22,6 +25,7 @@ export default function PlantCard({
   onSwitchToLocation
 }: PlantCardProps) {
   const [isFlipped, setIsFlipped] = useState(false);
+  const [isImageModalOpen, setIsImageModalOpen] = useState(false);
   
   // 获取该植物的所有位置信息
   const plantData = plants.find(p => p.id === plant.plantId);
@@ -37,19 +41,48 @@ export default function PlantCard({
     action();
   };
 
+  // 点击图片打开查看（模态框）
+  const handleImageClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsImageModalOpen(true);
+  };
+
+  // 获取实际图片URL（用于模态框显示）
+  const getImageUrl = () => {
+    if (plant.img.startsWith('/')) {
+      return `${window.location.origin}${plant.img}`;
+    }
+    return plant.img;
+  };
+
   return (
     <div 
-      className={`relative w-full h-full perspective-1000 cursor-pointer transition-all duration-500 ${isFlipped ? 'card-flipped' : ''}`}
-      onClick={() => !isFlipped && setIsFlipped(true)}
+      className={`relative w-full h-full transition-all duration-500 ${isFlipped ? 'card-flipped' : ''}`}
+      style={{ perspective: '1000px' }}
     >
       <div className="card-inner w-full h-full relative preserve-3d">
         {/* Front Side */}
-        <div className="card-front bg-amber-50 rounded-2xl shadow-xl overflow-hidden border-2 border-orange-200/60 flex flex-col p-4">
-          <div className="relative h-44 rounded-xl overflow-hidden shadow-inner mb-4 border border-orange-200/30">
-            <img 
-              src={plant.img} 
+        <div 
+          className="card-front bg-amber-50 rounded-2xl shadow-xl overflow-hidden border-2 border-orange-200/60 flex flex-col p-4 cursor-pointer"
+          onClick={(e) => {
+            // 如果点击的不是图片区域，才翻转
+            const target = e.target as HTMLElement;
+            const isImageArea = target.closest('.image-container');
+            if (!isImageArea && !isFlipped) {
+              setIsFlipped(true);
+            }
+          }}
+        >
+          <div 
+            className="image-container relative h-44 rounded-xl overflow-hidden shadow-inner mb-4 border border-orange-200/30 cursor-pointer"
+            onClick={handleImageClick}
+            title="点击查看大图"
+          >
+            <PlantImage
+              src={plant.img}
               alt={plant.name}
               className="w-full h-full object-cover transition-transform duration-700 hover:scale-110"
+              fallbackSrc={getPlantImageFallback(plant.plantId, currentLocationIndex) || plant.img}
             />
             <div className="absolute top-3 right-3 bg-primary text-white text-xs px-2.5 py-1 rounded-full font-bold shadow-lg backdrop-blur-sm btn-primary-shine">
               {plant.tag}
@@ -72,15 +105,6 @@ export default function PlantCard({
                 </h3>
                 <span className="text-xs text-orange-600/70 italic font-semibold uppercase tracking-wider">{plant.latin}</span>
               </div>
-              <button
-                onClick={handleFlip}
-                className="bg-amber-100 text-orange-800 px-3 py-1.5 rounded-lg border-2 border-orange-200/60 hover:bg-primary hover:text-white transition-all flex items-center gap-1.5 group btn-light-shine btn-shine"
-              >
-                <span className="text-[10px] font-bold uppercase tracking-wider">查看详情</span>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="group-hover:translate-x-0.5 transition-transform">
-                  <polyline points="9 18 15 12 9 6"/>
-                </svg>
-              </button>
             </div>
             
             <div className="mt-auto grid grid-cols-2 gap-3">
@@ -107,10 +131,15 @@ export default function PlantCard({
             </div>
             
             <button 
-              onClick={handleFlip}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (!isFlipped) {
+                  setIsFlipped(true);
+                }
+              }}
               className="mt-3 w-full py-2 text-[10px] font-bold text-orange-600/60 uppercase tracking-[0.2em] hover:text-primary transition-colors flex items-center justify-center gap-1"
             >
-              点击卡片或此处查看详情
+              点击卡片查看详情
               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
                 <polyline points="9 18 15 12 9 6"/>
               </svg>
@@ -157,10 +186,11 @@ export default function PlantCard({
                         }`}
                         title={`位置 ${idx + 1}`}
                       >
-                        <img
+                        <PlantImage
                           src={location.img}
                           alt={`${plant.name} 位置 ${idx + 1}`}
                           className="w-full h-full object-cover"
+                          fallbackSrc={getPlantImageFallback(plant.plantId, idx) || location.img}
                         />
                         {idx === currentLocationIndex && (
                           <div className="absolute inset-0 bg-primary/20 flex items-center justify-center">
@@ -227,6 +257,14 @@ export default function PlantCard({
           </div>
         </div>
       </div>
+
+      {/* 图片查看模态框 */}
+      <ImageModal
+        src={getImageUrl()}
+        alt={plant.name}
+        isOpen={isImageModalOpen}
+        onClose={() => setIsImageModalOpen(false)}
+      />
     </div>
   );
 }

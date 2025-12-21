@@ -2,6 +2,7 @@ import { useGeolocation } from '../../hooks/useGeolocation';
 import { useMapStore } from '../../stores/mapStore';
 import { useMapContext } from '../../contexts/MapContext';
 import { MapLayerType } from '../../types';
+import { showStatus, hideStatus } from './StatusBar';
 
 export default function Header() {
   const { getCurrentPosition, isLoading } = useGeolocation();
@@ -22,8 +23,26 @@ export default function Header() {
       if ((map as any).setUserLocation) {
         (map as any).setUserLocation(coords);
       }
-    } catch (error) {
+      
+      showStatus('定位成功！已显示您的位置');
+      setTimeout(hideStatus, 3000);
+    } catch (error: any) {
       console.error('定位失败:', error);
+      // 显示友好的错误提示
+      let errorMessage = '定位失败，请检查网络连接或浏览器设置';
+      
+      if (error && typeof error.code === 'number') {
+        if (error.code === 1) { // PERMISSION_DENIED
+          errorMessage = '定位权限被拒绝，请在浏览器设置中允许位置访问';
+        } else if (error.code === 2) { // POSITION_UNAVAILABLE
+          errorMessage = '定位服务不可用，请检查设备定位功能是否开启';
+        } else if (error.code === 3) { // TIMEOUT
+          errorMessage = '定位超时，请稍后重试';
+        }
+      }
+      
+      showStatus(errorMessage);
+      setTimeout(hideStatus, 5000);
     }
   };
 
@@ -46,8 +65,23 @@ export default function Header() {
             className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
               currentLayer === 'light' 
                 ? 'bg-primary text-white btn-primary-shine btn-shine' 
-                : 'text-orange-700/70 hover:text-primary hover:bg-amber-100 btn-light-shine'
+                : 'text-orange-700/70 btn-light-shine'
             }`}
+            style={currentLayer !== 'light' ? {
+              color: '#92400e',
+            } : {}}
+            onMouseEnter={(e) => {
+              if (currentLayer !== 'light') {
+                e.currentTarget.style.color = '#f97316';
+                e.currentTarget.style.backgroundColor = '#fef3c7';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (currentLayer !== 'light') {
+                e.currentTarget.style.color = '#92400e';
+                e.currentTarget.style.backgroundColor = '';
+              }
+            }}
           >
             简明地图
           </button>
@@ -56,8 +90,23 @@ export default function Header() {
             className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
               currentLayer === 'satellite' 
                 ? 'bg-primary text-white btn-primary-shine btn-shine' 
-                : 'text-orange-700/70 hover:text-primary hover:bg-amber-100 btn-light-shine'
+                : 'text-orange-700/70 btn-light-shine'
             }`}
+            style={currentLayer !== 'satellite' ? {
+              color: '#92400e',
+            } : {}}
+            onMouseEnter={(e) => {
+              if (currentLayer !== 'satellite') {
+                e.currentTarget.style.color = '#f97316';
+                e.currentTarget.style.backgroundColor = '#fef3c7';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (currentLayer !== 'satellite') {
+                e.currentTarget.style.color = '#92400e';
+                e.currentTarget.style.backgroundColor = '';
+              }
+            }}
           >
             实景地图
           </button>

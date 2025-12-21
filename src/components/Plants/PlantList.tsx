@@ -166,7 +166,7 @@ export default function PlantList() {
 
     let statusMsg = '';
     if (walkTime !== null && bikeTime !== null) {
-      statusMsg = `建议路线已生成：🚶步行约 ${walkTime} 分钟，🚲骑行约 ${bikeTime} 分钟`;
+      statusMsg = `建议路线已生成：步行约 ${walkTime} 分钟，骑行约 ${bikeTime} 分钟`;
     } else {
       statusMsg = '导航路线已生成';
     }
@@ -205,6 +205,7 @@ export default function PlantList() {
       className={`bg-white/95 backdrop-blur-sm h-full border-r-2 border-orange-200/60 z-[1000] box-border transition-all duration-400 flex flex-col items-center justify-center relative shadow-lg ${
         isSidebarOpen ? 'w-[380px] p-6' : 'w-0 p-0 -translate-x-full overflow-hidden'
       }`}
+      style={{ overflow: isSidebarOpen ? 'visible' : 'hidden' }}
     >
       <div className="w-full mb-6 text-center">
         <h2 className="text-xl font-black text-orange-600 m-0 tracking-tight drop-shadow-sm">秋季赏叶推荐</h2>
@@ -251,7 +252,7 @@ export default function PlantList() {
               
               return (
                 <div key={plant.id} className="min-w-full px-4 box-border h-full flex items-center justify-center relative">
-                  <div className="w-full h-[380px] relative">
+                  <div className="w-full h-[380px] relative" style={{ perspective: '1000px' }}>
                     {/* 显示当前选中的位置卡片 */}
                     <PlantCard
                       plant={plantInstance}
@@ -270,7 +271,7 @@ export default function PlantList() {
         </div>
       </div>
       
-      <div className="mt-4 flex gap-1.5">
+      <div className="mt-2 flex gap-1.5 justify-center">
         {plants.map((_, idx) => (
           <div 
             key={idx}

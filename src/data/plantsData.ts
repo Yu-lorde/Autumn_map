@@ -1,6 +1,26 @@
 import { Plant, PlantLocation } from '../types';
 
+// 备用图片URL（当本地图片不存在时使用）
+const FALLBACK_IMAGES = {
+  'p1-0': 'https://images.unsplash.com/photo-1501004318641-b39e6451bec6?w=800&q=60',
+  'p2-0': 'https://images.unsplash.com/photo-1502082553048-f009c37129b9?w=800&q=60',
+  'p3-0': 'https://images.unsplash.com/photo-1508739773434-c26b3d09e071?w=800&q=60',
+  'p4-0': 'https://images.unsplash.com/photo-1502082553048-f009c37129b9?w=800&q=60',
+  'p4-1': 'https://images.unsplash.com/photo-1502082553048-f009c37129b9?w=800&q=60',
+};
+
+/**
+ * 获取植物图片路径
+ * 优先使用本地图片：/plant-images/{plantId}-{locationIndex}.jpg
+ * 如果本地图片不存在，组件会自动fallback到在线图片
+ */
+function getPlantImagePath(plantId: string, locationIndex: number): string {
+  return `/plant-images/${plantId}-${locationIndex}.jpg`;
+}
+
 // 植物数据：每个植物可以有多个位置，共享名称、说明等信息
+// 注意：img 字段会自动优先使用本地图片（/plant-images/{plantId}-{locationIndex}.jpg）
+// 如果本地图片不存在，PlantImage 组件会自动使用备用在线图片URL
 export const plants: Plant[] = [
   {
     id: 'p1',
@@ -11,7 +31,7 @@ export const plants: Plant[] = [
     locations: [
       {
         coords: [30.3095, 120.0817],
-        img: 'https://images.unsplash.com/photo-1501004318641-b39e6451bec6?w=800&q=60'
+        img: getPlantImagePath('p1', 0)
       }
       // 示例：如何添加多个位置（同一植物在不同位置）
       // {
@@ -33,7 +53,7 @@ export const plants: Plant[] = [
     locations: [
       {
         coords: [30.3072, 120.0839],
-        img: 'https://images.unsplash.com/photo-1502082553048-f009c37129b9?w=800&q=60'
+        img: getPlantImagePath('p2', 0)
       }
     ]
   },
@@ -46,7 +66,7 @@ export const plants: Plant[] = [
     locations: [
       {
         coords: [30.3015, 120.0845],
-        img: 'https://images.unsplash.com/photo-1508739773434-c26b3d09e071?w=800&q=60'
+        img: getPlantImagePath('p3', 0)
       }
     ]
   },
@@ -59,11 +79,24 @@ export const plants: Plant[] = [
     locations: [
       {
         coords: [30.3050, 120.0820],
-        img: 'https://images.unsplash.com/photo-1502082553048-f009c37129b9?w=800&q=60'
+        img: getPlantImagePath('p4', 0)
       },
       {
         coords: [30.3030, 120.0840],
-        img: 'https://images.unsplash.com/photo-1502082553048-f009c37129b9?w=800&q=60'
+        img: getPlantImagePath('p4', 1)
+      }
+    ]
+  },
+  {
+    id: 'A1med',
+    name: 'A1med',
+    latin: 'A1med sp.',
+    tag: '测试',
+    description: '测试植物物种，用于验证本地照片上传功能。该植物位于紫金港校区内，具有独特的形态特征，是校园植物多样性研究的重要样本。',
+    locations: [
+      {
+        coords: [30.3020, 120.0830],
+        img: getPlantImagePath('A1med', 0)
       }
     ]
   }
