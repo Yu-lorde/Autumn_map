@@ -1,11 +1,22 @@
 import { createContext, useContext, ReactNode, useState, useCallback } from 'react';
-import L from 'leaflet';
+
+interface MapAdapter {
+  setView: (coords: [number, number], zoom: number) => void;
+  fitBounds: (bounds: any, options?: any) => void;
+  invalidateSize?: () => void;
+  eachLayer?: (callback: (layer: any) => void) => void;
+  removeLayer?: (layer: any) => void;
+}
+
+interface RoutingControlAdapter {
+  setWaypoints: (waypoints: any[]) => void;
+}
 
 interface MapContextType {
-  map: L.Map | null;
-  routingControl: L.Routing.Control | null;
-  setMap: (map: L.Map) => void;
-  setRoutingControl: (control: L.Routing.Control) => void;
+  map: MapAdapter | null;
+  routingControl: RoutingControlAdapter | null;
+  setMap: (map: MapAdapter) => void;
+  setRoutingControl: (control: RoutingControlAdapter) => void;
 }
 
 const MapContext = createContext<MapContextType>({
@@ -18,14 +29,14 @@ const MapContext = createContext<MapContextType>({
 export const useMapContext = () => useContext(MapContext);
 
 export function MapProvider({ children }: { children: ReactNode }) {
-  const [map, setMapState] = useState<L.Map | null>(null);
-  const [routingControl, setRoutingControlState] = useState<L.Routing.Control | null>(null);
+  const [map, setMapState] = useState<MapAdapter | null>(null);
+  const [routingControl, setRoutingControlState] = useState<RoutingControlAdapter | null>(null);
 
-  const setMap = useCallback((newMap: L.Map) => {
+  const setMap = useCallback((newMap: MapAdapter) => {
     setMapState(newMap);
   }, []);
 
-  const setRoutingControl = useCallback((control: L.Routing.Control) => {
+  const setRoutingControl = useCallback((control: RoutingControlAdapter) => {
     setRoutingControlState(control);
   }, []);
 

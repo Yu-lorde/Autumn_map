@@ -1,6 +1,6 @@
 # 浙江大学紫金港校区 · 秋季植物地图
 
-一个基于 React + TypeScript + Leaflet 的交互式校园植物地图应用。
+一个基于 React + TypeScript + MapLibre GL 的交互式校园植物地图应用。
 
 ## 🚀 技术栈
 
@@ -8,8 +8,7 @@
 - **TypeScript** - 类型安全
 - **Vite** - 构建工具
 - **Tailwind CSS** - 样式框架
-- **Leaflet** - 地图库
-- **react-leaflet** - React封装的Leaflet组件
+- **MapLibre GL** - 地图库（开源替代 Mapbox）
 - **Zustand** - 轻量级状态管理
 - **pnpm** - 包管理器
 
@@ -55,6 +54,22 @@ pnpm build
 pnpm preview
 ```
 
+### 预加载本地地图瓦片
+
+为了提高地图加载速度，紫金港校区的地图瓦片已预加载并提交到 git：
+
+```bash
+pnpm preload-tiles
+```
+
+这将下载紫金港校区区域的地图瓦片（zoom 15-16）到 `public/map-tiles` 目录。
+
+**重要**：
+- 紫金港校区的瓦片（zoom 15-16）**已提交到 git**，可以直接从 GitHub 加载
+- 地图会优先从 GitHub 加载瓦片，无需从在线 API 调用
+- 如果使用 GitHub Pages 部署，瓦片会自动从 GitHub 加载，速度更快
+- 其他区域的瓦片不会提交到 git（文件较大）
+
 ## 📝 功能特性
 
 - 🗺️ 双图层地图（卫星影像 + 简约导航）
@@ -63,6 +78,7 @@ pnpm preview
 - 📍 实时GPS定位
 - 🧭 路径导航功能
 - 🎨 现代化UI设计
+- ⚡ 本地地图瓦片缓存（可选，提升加载速度）
 
 ## 📚 参考文件
 
@@ -75,5 +91,6 @@ pnpm preview
 ## 📄 许可证
 
 MIT
+
 
 
