@@ -73,10 +73,11 @@ pnpm preview
 
 3. GitHub Actions 会自动构建并部署到 GitHub Pages
 
-4. 访问地址：`https://<你的用户名>.github.io/autumnmap/`
+4. 访问地址：`https://<你的用户名>.github.io/<仓库名>/`
 
 **注意：**
-- 项目配置的基础路径为 `/autumnmap/`
+- 如果是 fork 的仓库，URL 使用的是**你的 GitHub 用户名**，不是原作者的
+- 例如：如果你的用户名是 `yourname`，仓库名是 `Autumn_map`，则访问地址为 `https://yourname.github.io/Autumn_map/`
 - 确保 GitHub Pages 设置中使用 GitHub Actions 作为源
 - 部署后可能需要几分钟才能生效
 

@@ -55,7 +55,18 @@ jobs:
     needs: build
     environment:
       name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+      
+      - name: Display deployment URL
+        run: |
+          echo "🚀 部署成功！"
+          echo "📦 构建产物已上传到 GitHub Pages"
+          echo ""
+          echo "🌐 访问地址："
+          echo "   ${{ steps.deployment.outputs.page_url }}"
+          echo ""
+          echo "💡 提示：网站已部署到根路径，可以直接访问"
