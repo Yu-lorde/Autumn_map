@@ -45,7 +45,7 @@ export const plants: Plant[] = [
     locations: [
       {
         coords: [30.304790, 120.075703],
-        img: getPlantImagePath('p2', 0)
+        img: getPlantImagePath('P2', 0)
       }
     ]
   },
@@ -58,7 +58,7 @@ export const plants: Plant[] = [
     locations: [
       {
         coords: [30.306485, 120.079155],
-        img: getPlantImagePath('p3', 0)
+        img: getPlantImagePath('P3', 0)
       }
     ]
   },
@@ -71,7 +71,7 @@ export const plants: Plant[] = [
     locations: [
       {
         coords: [30.299785, 120.078075],
-        img: getPlantImagePath('p4', 0)
+        img: getPlantImagePath('P4', 0)
       },
     ]
   },
@@ -84,7 +84,7 @@ export const plants: Plant[] = [
     locations: [
       {
         coords: [30.300303, 120.077620],
-        img: getPlantImagePath('p5', 0)
+        img: getPlantImagePath('P5', 0)
       }
     ]
   },
@@ -97,7 +97,7 @@ export const plants: Plant[] = [
     locations: [
       {
         coords: [30.302559, 120.07825],
-        img: getPlantImagePath('p6', 0)
+        img: getPlantImagePath('P6', 0)
       }
     ]
   },
