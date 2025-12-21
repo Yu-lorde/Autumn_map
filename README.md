@@ -54,6 +54,22 @@ pnpm build
 pnpm preview
 ```
 
+### 构建独立单文件 HTML
+
+生成一个完全自包含的 standalone HTML 文件，所有 CSS、JS 都内联在其中：
+
+```bash
+pnpm build:standalone
+```
+
+构建完成后，在 `dist-standalone` 目录中会生成一个独立的 `index.html` 文件，可以直接在浏览器中打开使用。
+
+**注意：**
+- standalone HTML 文件包含所有 JavaScript 和 CSS（内联）
+- 图片资源（如植物图片、地图瓦片）仍需要从服务器加载或使用在线服务
+- 地图瓦片会使用在线服务（CartoDB、Esri），不依赖本地文件
+- 生成的 HTML 文件较大（通常几 MB），但可以完全离线使用（除了地图瓦片）
+
 ## 🚀 部署
 
 ### GitHub Pages 部署
@@ -78,6 +94,9 @@ pnpm preview
 **注意：**
 - 如果是 fork 的仓库，URL 使用的是**你的 GitHub 用户名**，不是原作者的
 - 例如：如果你的用户名是 `yourname`，仓库名是 `Autumn_map`，则访问地址为 `https://yourname.github.io/Autumn_map/`
+- base 路径会根据仓库名自动设置（例如：`/Autumn_map/`）
+- 如果遇到资源文件 404 错误，检查 GitHub Pages 的 URL 路径是否与 base 配置匹配
+- 如需手动设置 base 路径，可以在 workflow 中添加环境变量：`VITE_BASE_PATH=/your-path/`
 - 确保 GitHub Pages 设置中使用 GitHub Actions 作为源
 - 部署后可能需要几分钟才能生效
 
