@@ -1,17 +1,18 @@
 import { Plant } from '../types';
+import { withBase } from '../utils/publicUrl';
 
 /**
  * 获取植物图片路径
  * 默认使用 .jpg 扩展名，PlantImage 组件会自动尝试 .png, .webp 等其他格式
- * 优先使用本地图片：/plant-images/{plantId}-{locationIndex}.jpg
+ * 优先使用本地图片：plant-images/{plantId}-{locationIndex}.jpg（会自动补齐 base）
  * 如果本地图片不存在，PlantImage 组件会自动使用备用在线图片
  */
 function getPlantImagePath(plantId: string, locationIndex: number): string {
-  return `/plant-images/${plantId}-${locationIndex}.jpg`;
+  return withBase(`plant-images/${plantId}-${locationIndex}.jpg`);
 }
 
 // 植物数据：每个植物可以有多个位置，共享名称、说明等信息
-// 注意：img 字段会自动优先使用本地图片（/plant-images/{plantId}-{locationIndex}.jpg）
+// 注意：img 字段会自动优先使用本地图片（plant-images/{plantId}-{locationIndex}.jpg）
 // 如果本地图片不存在，PlantImage 组件会自动使用备用在线图片URL
 export const plants: Plant[] = [
   {
