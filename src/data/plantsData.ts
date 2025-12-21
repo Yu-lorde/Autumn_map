@@ -154,7 +154,7 @@ export function getUniquePlants(): PlantInstance[] {
 }
 
 // 默认备用起点（浙大南门）
-export const FALLBACK_START: [number, number] = [30.302959, 120.08083];
+export const FALLBACK_START: [number, number] = [30.300644, 120.084806];
 
 
 
