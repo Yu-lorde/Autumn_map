@@ -312,6 +312,7 @@ export default function MapLibreMap({ center, zoom }: MapContainerProps) {
           color: #78350f;
           font-size: 12px;
           line-height: 1.4;
+          white-space: pre-line; /* 保持文本中的换行符 */
           display: -webkit-box;
           -webkit-line-clamp: 2;
           -webkit-box-orient: vertical;

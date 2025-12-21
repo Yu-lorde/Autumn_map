@@ -244,7 +244,7 @@ export default function PlantCard({
           </div>
           
           <div className="flex-1 overflow-y-auto scrollbar-thin pr-2">
-            <p className="text-sm leading-relaxed font-medium text-orange-800/90 first-letter:text-2xl first-letter:font-bold first-letter:mr-1">
+            <p className="text-sm leading-relaxed font-medium text-orange-800/90 first-letter:text-2xl first-letter:font-bold first-letter:mr-1 whitespace-pre-line">
               {plant.description}
             </p>
           </div>
