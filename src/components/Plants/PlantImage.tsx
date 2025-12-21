@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 interface PlantImageProps {
   src: string;
@@ -19,6 +19,12 @@ export default function PlantImage({
 }: PlantImageProps) {
   const [imgSrc, setImgSrc] = useState(src);
   const [hasError, setHasError] = useState(false);
+
+  // 当 src prop 改变时，同步更新 imgSrc 并重置错误状态
+  useEffect(() => {
+    setImgSrc(src);
+    setHasError(false);
+  }, [src]);
 
   const handleError = () => {
     if (!hasError && fallbackSrc && imgSrc !== fallbackSrc) {
