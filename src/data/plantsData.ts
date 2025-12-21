@@ -80,7 +80,7 @@ export const plants: Plant[] = [
     ]
   },
   {
-    id: 'A1med',
+    id: 'P10',
     name: 'A1med',
     latin: 'A1med sp.',
     tag: '测试',
@@ -88,7 +88,7 @@ export const plants: Plant[] = [
     locations: [
       {
         coords: [30.3020, 120.0830],
-        img: getPlantImagePath('A1med', 0)
+        img: getPlantImagePath('P10', 1)
       }
     ]
   }
