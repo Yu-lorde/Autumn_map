@@ -64,8 +64,8 @@ export default function PlantList() {
       
       // 等待地图移动完成后闪烁标记
       setTimeout(() => {
-        if ((map as any).flashMarker) {
-          (map as any).flashMarker(id, targetLocationIndex);
+        if (map.flashMarker) {
+          map.flashMarker(id, targetLocationIndex);
         }
       }, 1000); // 等待地图移动动画完成
     }
@@ -149,8 +149,8 @@ export default function PlantList() {
       startPoint = [position.coords.latitude, position.coords.longitude];
       
       // 更新用户位置标记
-      if ((map as any).setUserLocation) {
-        (map as any).setUserLocation(startPoint);
+      if (map.setUserLocation) {
+        map.setUserLocation(startPoint);
       }
     } catch (err) {
       console.warn('Location access denied or timed out:', err);

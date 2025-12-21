@@ -6,6 +6,8 @@ interface MapAdapter {
   invalidateSize?: () => void;
   eachLayer?: (callback: (layer: any) => void) => void;
   removeLayer?: (layer: any) => void;
+  setUserLocation?: (coords: [number, number]) => void;
+  flashMarker?: (plantId: string, locationIndex: number) => void;
 }
 
 interface RoutingControlAdapter {

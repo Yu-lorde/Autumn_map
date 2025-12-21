@@ -1,18 +1,9 @@
 import { Plant, PlantLocation } from '../types';
 
-// 备用图片URL（当本地图片不存在时使用）
-const FALLBACK_IMAGES = {
-  'p1-0': 'https://images.unsplash.com/photo-1501004318641-b39e6451bec6?w=800&q=60',
-  'p2-0': 'https://images.unsplash.com/photo-1502082553048-f009c37129b9?w=800&q=60',
-  'p3-0': 'https://images.unsplash.com/photo-1508739773434-c26b3d09e071?w=800&q=60',
-  'p4-0': 'https://images.unsplash.com/photo-1502082553048-f009c37129b9?w=800&q=60',
-  'p4-1': 'https://images.unsplash.com/photo-1502082553048-f009c37129b9?w=800&q=60',
-};
-
 /**
  * 获取植物图片路径
  * 优先使用本地图片：/plant-images/{plantId}-{locationIndex}.jpg
- * 如果本地图片不存在，组件会自动fallback到在线图片
+ * 如果本地图片不存在，PlantImage 组件会自动使用备用在线图片
  */
 function getPlantImagePath(plantId: string, locationIndex: number): string {
   return `/plant-images/${plantId}-${locationIndex}.jpg`;

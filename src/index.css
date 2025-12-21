@@ -16,26 +16,6 @@
   animation: fade-in 0.2s ease-out;
 }
 
-/* Leaflet CSS */
-@import 'leaflet/dist/leaflet.css';
-@import 'leaflet-routing-machine/dist/leaflet-routing-machine.css';
-
-/* 修复 Leaflet 默认图标路径问题 */
-.leaflet-container {
-  font-family: 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
-}
-
-/* 确保地图容器正确渲染 */
-.leaflet-container img {
-  max-width: none !important;
-}
-
-.leaflet-tile-container img {
-  max-width: none !important;
-  width: 256px !important;
-  height: 256px !important;
-}
-
 /* 自定义滚动条样式 */
 @layer utilities {
   .scrollbar-thin {

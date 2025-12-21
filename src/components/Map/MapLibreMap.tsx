@@ -67,11 +67,70 @@ export default function MapLibreMap({ center, zoom }: MapContainerProps) {
           });
         });
       },
-      removeLayer: (layer: { remove?: () => void }) => {
-        if (layer && layer.remove) {
-          layer.remove();
+      setUserLocation: (coords: [number, number]) => {
+        const source = map.getSource('user-location') as maplibregl.GeoJSONSource;
+        if (source) {
+          source.setData({
+            type: 'Feature',
+            geometry: {
+              type: 'Point',
+              coordinates: [coords[1], coords[0]]
+            },
+            properties: {}
+          });
         }
+      },
+      flashMarker: (plantId: string, locationIndex: number) => {
+        const markerKey = `${plantId}-${locationIndex}`;
+        const marker = markersMapRef.current.get(markerKey);
+        if (!marker) return;
+
+        const markerElement = marker.getElement();
+        if (!markerElement) return;
+
+        // 找到内层元素（第一个子元素，用于动画）
+        const innerElement = markerElement.firstElementChild as HTMLElement;
+        const targetElement = innerElement || markerElement;
+
+        if (!targetElement) return;
+
+        // 闪烁动画：放大缩小两次
+        let flashCount = 0;
+        const flashAnimation = () => {
+          if (flashCount >= 2) {
+            // 动画结束，恢复原状
+            targetElement.style.transform = 'scale(1)';
+            return;
+          }
+
+          flashCount++;
+          
+          // 放大
+          targetElement.style.transform = 'scale(1.6)';
+          targetElement.style.transition = 'transform 0.25s ease-out';
+          
+          // 缩小
+          setTimeout(() => {
+            targetElement.style.transform = 'scale(1)';
+            targetElement.style.transition = 'transform 0.25s ease-in';
+            
+            // 等待后继续下一次闪烁
+            setTimeout(() => {
+              flashAnimation();
+            }, 200);
+          }, 250);
+        };
+
+        // 开始闪烁
+        flashAnimation();
       }
+    } as {
+      setView: (coords: [number, number], zoomLevel: number) => void;
+      fitBounds: (bounds: { getSouthWest: () => { lat: number; lng: number }; getNorthEast: () => { lat: number; lng: number } }, options?: { padding?: number | number[] }) => void;
+      invalidateSize: () => void;
+      eachLayer: (callback: (layer: { getLatLng: () => { lat: number; lng: number } }) => void) => void;
+      setUserLocation: (coords: [number, number]) => void;
+      flashMarker: (plantId: string, locationIndex: number) => void;
     };
 
     setMap(mapAdapter);
@@ -305,67 +364,6 @@ export default function MapLibreMap({ center, zoom }: MapContainerProps) {
         }
       };
       setRoutingControl(routingControlAdapter);
-
-      // 更新用户位置的方法
-      (mapAdapter as any).setUserLocation = (coords: [number, number]) => {
-        const source = map.getSource('user-location') as maplibregl.GeoJSONSource;
-        if (source) {
-          source.setData({
-            type: 'Feature',
-            geometry: {
-              type: 'Point',
-              coordinates: [coords[1], coords[0]]
-            },
-            properties: {}
-          });
-        }
-      };
-
-      // 添加标记闪烁方法
-      (mapAdapter as any).flashMarker = (plantId: string, locationIndex: number) => {
-        const markerKey = `${plantId}-${locationIndex}`;
-        const marker = markersMapRef.current.get(markerKey);
-        if (!marker) return;
-
-        const markerElement = marker.getElement();
-        if (!markerElement) return;
-
-        // 找到内层元素（第一个子元素，用于动画）
-        const innerElement = markerElement.firstElementChild as HTMLElement;
-        const targetElement = innerElement || markerElement;
-
-        if (!targetElement) return;
-
-        // 闪烁动画：放大缩小两次
-        let flashCount = 0;
-        const flashAnimation = () => {
-          if (flashCount >= 2) {
-            // 动画结束，恢复原状
-            targetElement.style.transform = 'scale(1)';
-            return;
-          }
-
-          flashCount++;
-          
-          // 放大
-          targetElement.style.transform = 'scale(1.6)';
-          targetElement.style.transition = 'transform 0.25s ease-out';
-          
-          // 缩小
-          setTimeout(() => {
-            targetElement.style.transform = 'scale(1)';
-            targetElement.style.transition = 'transform 0.25s ease-in';
-            
-            // 等待后继续下一次闪烁
-            setTimeout(() => {
-              flashAnimation();
-            }, 200);
-          }, 250);
-        };
-
-        // 开始闪烁
-        flashAnimation();
-      };
     });
 
     // 监听数据加载事件

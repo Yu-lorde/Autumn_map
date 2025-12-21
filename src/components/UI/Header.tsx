@@ -20,8 +20,8 @@ export default function Header() {
       }
       
       // 更新用户位置标记
-      if ((map as any).setUserLocation) {
-        (map as any).setUserLocation(coords);
+      if (map.setUserLocation) {
+        map.setUserLocation(coords);
       }
       
       showStatus('定位成功！已显示您的位置');
@@ -65,23 +65,8 @@ export default function Header() {
             className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
               currentLayer === 'light' 
                 ? 'bg-primary text-white btn-primary-shine btn-shine' 
-                : 'text-orange-700/70 btn-light-shine'
+                : 'text-[#92400e] hover:text-primary hover:bg-amber-100 btn-light-shine'
             }`}
-            style={currentLayer !== 'light' ? {
-              color: '#92400e',
-            } : {}}
-            onMouseEnter={(e) => {
-              if (currentLayer !== 'light') {
-                e.currentTarget.style.color = '#f97316';
-                e.currentTarget.style.backgroundColor = '#fef3c7';
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (currentLayer !== 'light') {
-                e.currentTarget.style.color = '#92400e';
-                e.currentTarget.style.backgroundColor = '';
-              }
-            }}
           >
             简明地图
           </button>
@@ -90,23 +75,8 @@ export default function Header() {
             className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
               currentLayer === 'satellite' 
                 ? 'bg-primary text-white btn-primary-shine btn-shine' 
-                : 'text-orange-700/70 btn-light-shine'
+                : 'text-[#92400e] hover:text-primary hover:bg-amber-100 btn-light-shine'
             }`}
-            style={currentLayer !== 'satellite' ? {
-              color: '#92400e',
-            } : {}}
-            onMouseEnter={(e) => {
-              if (currentLayer !== 'satellite') {
-                e.currentTarget.style.color = '#f97316';
-                e.currentTarget.style.backgroundColor = '#fef3c7';
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (currentLayer !== 'satellite') {
-                e.currentTarget.style.color = '#92400e';
-                e.currentTarget.style.backgroundColor = '';
-              }
-            }}
           >
             实景地图
           </button>
