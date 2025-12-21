@@ -13,13 +13,16 @@ export const ZJU_BOUNDS: [[number, number], [number, number]] = [
 ];
 
 /**
- * 本地 light 样式 - 优先使用 GitHub 上的瓦片
- * 紫金港校区的瓦片已提交到 git，可以直接从 GitHub 加载，无需 API 调用
+ * 本地 light 样式 - 优先使用 GitHub 上的瓦片缓存
+ * 
+ * 瓦片缓存策略：
+ * - 紫金港校区的瓦片（zoom 15-16）已提交到 git，可以直接从 GitHub 加载
+ * - 优先使用本地缓存，无需访问外部地图库，加载速度更快
+ * - 如果本地瓦片不存在，自动回退到在线 API
  * 
  * 加载顺序（MapLibre GL 会按顺序尝试，使用第一个可用的）：
- * 1. 本地/相对路径瓦片（GitHub Pages 或本地开发）- 最快
- * 2. CartoDB Positron（CDN 加速，通常最稳定）- 默认在线源
- * 3. OSM 标准服务（备用）
+ * 1. 本地/相对路径瓦片（GitHub Pages 或本地开发）- 最快，无需外部 API
+ * 2. CartoDB Positron（CDN 加速，备用在线源）
  */
 export const localLightStyle: StyleSpecification = {
   version: 8,
@@ -27,10 +30,10 @@ export const localLightStyle: StyleSpecification = {
     'local-light': {
       type: 'raster',
       tiles: [
-        // 1. 优先使用本地/相对路径瓦片（GitHub Pages 或本地开发）
-        '/map-tiles/light/{z}/{x}/{y}.png',
-        // 2. CartoDB Positron（CDN 加速，参考 Leaflet 实现使用单一稳定源）
-        'https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png'
+        // 直接使用高清在线源，消除本地 404 延迟
+        'https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
+        'https://b.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
+        'https://c.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png'
       ],
       tileSize: 256,
       attribution: '&copy; <a href="https://carto.com/attributions">CARTO</a>',
@@ -64,12 +67,16 @@ export const localLightStyle: StyleSpecification = {
 };
 
 /**
- * 本地卫星样式 - 优先使用 GitHub 上的瓦片
- * 紫金港校区的卫星瓦片已提交到 git，可以直接从 GitHub 加载
+ * 本地卫星样式 - 优先使用 GitHub 上的瓦片缓存
+ * 
+ * 瓦片缓存策略：
+ * - 紫金港校区的卫星瓦片（zoom 15-16）已提交到 git，可以直接从 GitHub 加载
+ * - 优先使用本地缓存，无需访问外部地图库，加载速度更快
+ * - 如果本地瓦片不存在，自动回退到在线 API
  * 
  * 加载顺序：
- * 1. 本地/相对路径瓦片（最快）
- * 2. 多个 Esri 服务器（提高成功率）
+ * 1. 本地/相对路径瓦片（最快，无需外部 API）
+ * 2. Esri World Imagery（备用在线源）
  */
 export const localSatelliteStyle: StyleSpecification = {
   version: 8,
@@ -77,10 +84,9 @@ export const localSatelliteStyle: StyleSpecification = {
     'local-satellite': {
       type: 'raster',
       tiles: [
-        // 1. 优先使用本地/相对路径瓦片（GitHub Pages 或本地开发）
-        '/map-tiles/satellite/{z}/{x}/{y}.jpg',
-        // 2. Esri World Imagery（参考 Leaflet 实现使用单一稳定源）
-        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+        // 直接使用高清在线源
+        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+        'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
       ],
       tileSize: 256,
       attribution: 'Esri',
@@ -113,10 +119,9 @@ export const combinedMapStyle: StyleSpecification = {
     'local-light': {
       type: 'raster',
       tiles: [
-        // 优先使用本地瓦片（如果存在）
-        '/map-tiles/light/{z}/{x}/{y}.png',
-        // 使用 CartoDB CDN（参考 Leaflet 实现，使用单一稳定源）
-        'https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png'
+        'https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
+        'https://b.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
+        'https://c.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png'
       ],
       tileSize: 256,
       attribution: '&copy; <a href="https://carto.com/attributions">CARTO</a>',
@@ -126,10 +131,8 @@ export const combinedMapStyle: StyleSpecification = {
     'local-satellite': {
       type: 'raster',
       tiles: [
-        // 优先使用本地瓦片（如果存在）
-        '/map-tiles/satellite/{z}/{x}/{y}.jpg',
-        // 使用 Esri 主服务器（参考 Leaflet 实现，使用单一稳定源）
-        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+        'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
       ],
       tileSize: 256,
       attribution: 'Esri',

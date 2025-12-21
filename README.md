@@ -100,22 +100,6 @@ pnpm build:standalone
 - 确保 GitHub Pages 设置中使用 GitHub Actions 作为源
 - 部署后可能需要几分钟才能生效
 
-### 预加载本地地图瓦片
-
-为了提高地图加载速度，紫金港校区的地图瓦片已预加载并提交到 git：
-
-```bash
-pnpm preload-tiles
-```
-
-这将下载紫金港校区区域的地图瓦片（zoom 15-16）到 `public/map-tiles` 目录。
-
-**重要**：
-- 紫金港校区的瓦片（zoom 15-16）**已提交到 git**，可以直接从 GitHub 加载
-- 地图会优先从 GitHub 加载瓦片，无需从在线 API 调用
-- 如果使用 GitHub Pages 部署，瓦片会自动从 GitHub 加载，速度更快
-- 其他区域的瓦片不会提交到 git（文件较大）
-
 ## 📝 功能特性
 
 - 🗺️ 双图层地图（卫星影像 + 简约导航）
@@ -124,7 +108,6 @@ pnpm preload-tiles
 - 📍 实时GPS定位
 - 🧭 路径导航功能
 - 🎨 现代化UI设计
-- ⚡ 本地地图瓦片缓存（可选，提升加载速度）
 
 ## 📚 参考文件
 
