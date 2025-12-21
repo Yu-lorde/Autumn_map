@@ -15,7 +15,7 @@ interface ImageModalProps {
  * 全屏显示图片，点击背景或ESC键关闭
  * 使用 Portal 渲染到 body，确保真正的全屏显示
  */
-export default function ImageModal({ src, alt, isOpen, onClose }: ImageModalProps) {
+export default function ImageModal({ src, alt, fallbackSrc, isOpen, onClose }: ImageModalProps) {
   // ESC键关闭
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
