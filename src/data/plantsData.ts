@@ -87,7 +87,7 @@ export const plants: Plant[] = [
         img: getPlantImagePath('p5', 0)
       }
     ]
-  }
+  },
   {
     id: 'p6',
     name: '金钱松',
@@ -100,7 +100,7 @@ export const plants: Plant[] = [
         img: getPlantImagePath('p6', 0)
       }
     ]
-  }
+  },
 ];
 
 // 展平的植物实例（用于地图标记和列表显示）
