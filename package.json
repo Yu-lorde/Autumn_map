@@ -8,8 +8,7 @@
     "build": "tsc && vite build",
     "build:standalone": "tsc && cross-env BUILD_STANDALONE=true vite build --outDir dist-standalone",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
-    "preview": "vite preview",
-    "preload-tiles": "node scripts/preload-zju-tiles.js"
+    "preview": "vite preview"
   },
   "dependencies": {
     "maplibre-gl": "^3.6.2",

@@ -43,12 +43,6 @@ export default function MapLibreMap({ center, zoom }: MapContainerProps) {
       zoom: zoom,
       minZoom: 10,
       maxZoom: 18,
-      // 限制地图边界，比紫金港校区稍大一点，提供更合理的视野范围
-      // maxBounds 会限制用户移动范围，同时 MapLibre GL 也会限制在此范围内的瓦片请求
-      maxBounds: [
-        [120.0600, 30.2850], // 西南角 [lng, lat] - 比校区边界扩大约 1-2 公里
-        [120.1050, 30.3300]  // 东北角 [lng, lat] - 比校区边界扩大约 1-2 公里
-      ],
       // 不渲染世界副本，只显示一次地图，减少瓦片加载
       renderWorldCopies: false,
     });
@@ -57,14 +51,9 @@ export default function MapLibreMap({ center, zoom }: MapContainerProps) {
     
     // MapLibre GL 的瓦片加载机制说明：
     // 1. 内置懒加载：自动只加载当前视野（viewport）范围内的瓦片
-    // 2. maxBounds 限制：限制地图移动范围，同时也会限制瓦片请求范围
-    // 3. 预加载机制：会预加载视野边缘的少量瓦片，用于平滑移动
-    // 4. 自动卸载：视野外的瓦片会自动从缓存中移除，释放内存
-    // 
-    // 因此，设置了 maxBounds 后：
-    // - 用户无法移动到边界外，所以不会请求边界外的瓦片
-    // - 即使在地图边界内，也只会加载当前视野可见的瓦片
-    // - 这样可以有效减少瓦片加载量和内存占用
+    // 2. 预加载机制：会预加载视野边缘的少量瓦片，用于平滑移动
+    // 3. 自动卸载：视野外的瓦片会自动从缓存中移除，释放内存
+    // 4. 只加载可见瓦片：即使地图可以自由移动，也只会加载当前视野可见的瓦片
     
     // 创建适配器以兼容现有的 Leaflet API
     const mapAdapter = {
@@ -700,12 +689,12 @@ export default function MapLibreMap({ center, zoom }: MapContainerProps) {
       if (targetLayer === 'satellite') {
         // 切换到卫星图层
         if (!satelliteSource) {
-          // 如果卫星源不存在，动态添加（延迟加载）
+          // 直接添加在线卫星源
           map.addSource('local-satellite', {
             type: 'raster',
             tiles: [
-              '/map-tiles/satellite/{z}/{x}/{y}.jpg',
-              'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+              'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+              'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
             ],
             tileSize: 256,
             attribution: 'Esri',
@@ -733,12 +722,13 @@ export default function MapLibreMap({ center, zoom }: MapContainerProps) {
       } else {
         // 切换到 light 图层
         if (!lightSource) {
-          // 如果 light 源不存在，动态添加（延迟加载）
+          // 直接添加在线简约源
           map.addSource('local-light', {
             type: 'raster',
             tiles: [
-              '/map-tiles/light/{z}/{x}/{y}.png',
-              'https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png'
+              'https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
+              'https://b.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
+              'https://c.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png'
             ],
             tileSize: 256,
             attribution: '&copy; <a href="https://carto.com/attributions">CARTO</a>',
