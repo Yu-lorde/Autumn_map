@@ -102,68 +102,24 @@ export default function PlantList() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [plantLocationIndices]);
 
-  importRouteConfig();
+  // 点击地图钉时，让左侧卡片自动切换到对应植物
+  useEffect(() => {
+    const onMarkerClick = (e: Event) => {
+      const ce = e as CustomEvent<{ plantId: string; locationIndex: number }>;
+      const plantId = ce.detail?.plantId;
+      const locationIndex = ce.detail?.locationIndex ?? 0;
+      if (!plantId) return;
 
-  type RouteEstimate = { minutes: number; source: 'osrm' | 'estimate' };
+      const idx = plants.findIndex(p => p.id === plantId);
+      if (idx < 0) return;
 
-  async function importRouteConfig() {
-    /* lazy import to avoid bundling if unused */
-    return await import('../../config/routeConfig');
-  }
-
-  const fetchRouteTime = async (profile: 'foot' | 'bicycle', start: [number, number], end: [number, number]): Promise<RouteEstimate> => {
-    // Map app-level profiles to OSRM-supported profiles
-    const profileMap: Record<string, string> = { foot: 'walking', bicycle: 'cycling' };
-    const osrmProfile = profileMap[profile] || profile;
-
-    // Helper: haversine fallback estimate (meters)
-    const haversineDistance = (a: [number, number], b: [number, number]) => {
-      const toRad = (deg: number) => (deg * Math.PI) / 180;
-      const R = 6371000; // Earth radius in meters
-      const dLat = toRad(b[0] - a[0]);
-      const dLon = toRad(b[1] - a[1]);
-      const lat1 = toRad(a[0]);
-      const lat2 = toRad(b[0]);
-      const sinDLat = Math.sin(dLat / 2);
-      const sinDLon = Math.sin(dLon / 2);
-      const aa = sinDLat * sinDLat + Math.cos(lat1) * Math.cos(lat2) * sinDLon * sinDLon;
-      const c = 2 * Math.atan2(Math.sqrt(aa), Math.sqrt(1 - aa));
-      return R * c;
+      setCurrentPlantIndex(idx);
+      setPlantLocationIndices(prev => ({ ...prev, [plantId]: locationIndex }));
     };
 
-    // Load config values
-    const routeCfg = await importRouteConfig();
-    const walkFactor = routeCfg.WALK_ROUTE_FACTOR ?? 1.2;
-    const bikeFactor = routeCfg.BIKE_ROUTE_FACTOR ?? 1.1;
-    const walkSpeed = routeCfg.WALK_SPEED_M_PER_MIN ?? 80;
-    const bikeSpeed = routeCfg.BIKE_SPEED_M_PER_MIN ?? 250;
-
-    try {
-      const url = `https://router.project-osrm.org/route/v1/${osrmProfile}/${start[1]},${start[0]};${end[1]},${end[0]}?overview=false&annotations=duration`;
-      const response = await fetch(url, { cache: 'no-store' });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const data = await response.json();
-
-      // OSRM returns code === 'Ok' on success
-      if (data && data.code === 'Ok' && Array.isArray(data.routes) && data.routes.length > 0) {
-        const durationSec = data.routes[0].duration; // seconds
-        const minutes = Math.max(1, Math.round(durationSec / 60));
-        return { minutes, source: 'osrm' };
-      }
-
-      throw new Error('No route returned');
-    } catch (err) {
-      console.warn(`Failed to fetch ${osrmProfile} route, using fallback estimate:`, err);
-
-      // Fallback: improved straight-line estimate using route factor
-      const dist = haversineDistance(start, end);
-      const factor = profile === 'bicycle' ? bikeFactor : walkFactor;
-      const speed = profile === 'bicycle' ? bikeSpeed : walkSpeed;
-      const adjustedDistance = Math.max(1, dist * factor);
-      const estimateMinutes = Math.max(1, Math.round(adjustedDistance / speed));
-      return { minutes: estimateMinutes, source: 'estimate' };
-    }
-  };
+    window.addEventListener('plant-marker-click', onMarkerClick as EventListener);
+    return () => window.removeEventListener('plant-marker-click', onMarkerClick as EventListener);
+  }, []);
 
   const handleNavigate = async (id: string) => {
     const plant = plants.find(p => p.id === id);
@@ -206,17 +162,8 @@ export default function PlantList() {
       showStatus('定位不可用，为您展示从南门出发的路线');
     }
     
-    // 获取步行和骑行时间（并显示来源）
-    const [walkEst, bikeEst] = await Promise.all([
-      fetchRouteTime('foot', startPoint, plantInstance.coords),
-      fetchRouteTime('bicycle', startPoint, plantInstance.coords)
-    ]);
-
-    const walkLabel = walkEst.source === 'osrm' ? `步行约 ${walkEst.minutes} 分钟` : `步行约 ${walkEst.minutes} 分钟（估算）`;
-    const bikeLabel = bikeEst.source === 'osrm' ? `骑行约 ${bikeEst.minutes} 分钟` : `骑行约 ${bikeEst.minutes} 分钟（估算）`;
-
-    const statusMsg = `建议路线已生成：${walkLabel}，${bikeLabel}`;
-    showStatus(statusMsg);
+    // 不再显示“预计时间”（估计逻辑已移除）
+    showStatus('导航路线已生成');
     
     // 设置路线
     if (routingControl.setWaypoints) {
