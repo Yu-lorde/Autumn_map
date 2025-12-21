@@ -1,4 +1,4 @@
-import maplibregl from 'maplibre-gl';
+import type { StyleSpecification } from 'maplibre-gl';
 
 /**
  * 浙大紫金港校区本地地图样式配置
@@ -21,7 +21,7 @@ export const ZJU_BOUNDS: [[number, number], [number, number]] = [
  * 2. CartoDB Positron（CDN 加速，通常最稳定）- 默认在线源
  * 3. OSM 标准服务（备用）
  */
-export const localLightStyle: maplibregl.StyleSpecification = {
+export const localLightStyle: StyleSpecification = {
   version: 8,
   sources: {
     'local-light': {
@@ -73,7 +73,7 @@ export const localLightStyle: maplibregl.StyleSpecification = {
  * 1. 本地/相对路径瓦片（最快）
  * 2. 多个 Esri 服务器（提高成功率）
  */
-export const localSatelliteStyle: maplibregl.StyleSpecification = {
+export const localSatelliteStyle: StyleSpecification = {
   version: 8,
   sources: {
     'local-satellite': {
@@ -110,7 +110,7 @@ export const localSatelliteStyle: maplibregl.StyleSpecification = {
  * 组合样式 - 同时包含 light 和 satellite 两个源
  * 用于图层切换优化：切换时只改变图层可见性，不重新下载瓦片
  */
-export const combinedMapStyle: maplibregl.StyleSpecification = {
+export const combinedMapStyle: StyleSpecification = {
   version: 8,
   sources: {
     'local-light': {

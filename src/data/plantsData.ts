@@ -1,4 +1,4 @@
-import { Plant, PlantLocation } from '../types';
+import { Plant } from '../types';
 
 /**
  * 获取植物图片路径
