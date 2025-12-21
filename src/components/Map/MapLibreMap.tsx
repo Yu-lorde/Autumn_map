@@ -318,10 +318,25 @@ export default function MapLibreMap({ center, zoom }: MapContainerProps) {
           -webkit-box-orient: vertical;
           overflow: hidden;
         `;
-        const descriptionText = plantInstance.description.length > 60 
-          ? plantInstance.description.substring(0, 60) + '...'
-          : plantInstance.description;
-        descriptionDiv.textContent = descriptionText; // 使用 textContent 防止 XSS
+        const fullText = plantInstance.description || '';
+        const descriptionText = fullText.length > 60 ? fullText.substring(0, 60) + '...' : fullText;
+        // 逐行解析，遇到固定前缀则将前缀用 <strong> 包裹
+        const lines = descriptionText.split('\n');
+        lines.forEach((line, i) => {
+          const m = line.match(/^(坐标数据：|植物志记录：|气味数据：|情绪数据：)([\s\S]*)$/);
+          if (m) {
+            const strong = document.createElement('strong');
+            strong.style.fontWeight = '600';
+            strong.textContent = m[1];
+            descriptionDiv.appendChild(strong);
+            descriptionDiv.appendChild(document.createTextNode(m[2] || ''));
+          } else {
+            descriptionDiv.appendChild(document.createTextNode(line));
+          }
+          if (i !== lines.length - 1) {
+            descriptionDiv.appendChild(document.createElement('br'));
+          }
+        });
         
         contentDiv.appendChild(latinDiv);
         contentDiv.appendChild(descriptionDiv);

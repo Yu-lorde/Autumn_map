@@ -244,9 +244,22 @@ export default function PlantCard({
           </div>
           
           <div className="flex-1 overflow-y-auto scrollbar-thin pr-2">
-            <p className="text-sm leading-relaxed font-medium text-orange-800/90 first-letter:text-2xl first-letter:font-bold first-letter:mr-1 whitespace-pre-line">
-              {plant.description}
-            </p>
+            <div className="text-sm leading-relaxed font-medium text-orange-800/90">
+              {plant.description.split('\n').map((line, idx) => {
+                const m = line.match(/^(坐标数据：|植物志记录：|气味数据：|情绪数据：)([\s\S]*)$/);
+                if (m) {
+                  return (
+                    <div key={idx} className="mb-1">
+                      <strong className="font-semibold">{m[1]}</strong>
+                      <span className="ml-1 whitespace-pre-line">{m[2]}</span>
+                    </div>
+                  );
+                }
+                return (
+                  <div key={idx} className="whitespace-pre-line">{line}</div>
+                );
+              })}
+            </div>
           </div>
           
           <div className="mt-6 pt-4 border-t-2 border-orange-300/50 flex items-center justify-center gap-2 text-[11px] font-bold text-orange-600/50">
