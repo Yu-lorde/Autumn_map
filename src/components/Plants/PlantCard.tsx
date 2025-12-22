@@ -4,6 +4,7 @@ import { plants } from '../../data/plantsData';
 import PlantImage from './PlantImage';
 import { getPlantImageFallback } from '../../utils/plantImageFallbacks';
 import ImageModal from './ImageModal';
+import { parsePlantDescription } from '../../utils/plantDescription';
 
 interface PlantCardProps {
   plant: PlantInstance;
@@ -46,14 +47,8 @@ export default function PlantCard({
     e.stopPropagation();
     setIsImageModalOpen(true);
   };
-
-  // 获取实际图片URL（用于模态框显示）
-  const getImageUrl = () => {
-    if (plant.img.startsWith('/')) {
-      return `${window.location.origin}${plant.img}`;
-    }
-    return plant.img;
-  };
+  
+  const modalFallbackSrc = getPlantImageFallback(plant.plantId, currentLocationIndex) || plant.img;
 
   return (
     <div 
@@ -244,9 +239,21 @@ export default function PlantCard({
           </div>
           
           <div className="flex-1 overflow-y-auto scrollbar-thin pr-2">
-            <p className="text-sm leading-relaxed font-medium text-orange-800/90 first-letter:text-2xl first-letter:font-bold first-letter:mr-1">
-              {plant.description}
-            </p>
+            <div className="text-sm leading-relaxed font-medium text-orange-800/90">
+              {parsePlantDescription(plant.description).map((part, idx) => {
+                if (part.type === 'prefixed') {
+                  return (
+                    <div key={idx} className="mb-1">
+                      <strong className="font-semibold">{part.prefix}</strong>
+                      <span className="ml-1 whitespace-pre-line">{part.text}</span>
+                    </div>
+                  );
+                }
+                return (
+                  <div key={idx} className="whitespace-pre-line">{part.text}</div>
+                );
+              })}
+            </div>
           </div>
           
           <div className="mt-6 pt-4 border-t-2 border-orange-300/50 flex items-center justify-center gap-2 text-[11px] font-bold text-orange-600/50">
@@ -260,8 +267,9 @@ export default function PlantCard({
 
       {/* 图片查看模态框 */}
       <ImageModal
-        src={getImageUrl()}
+        src={plant.img}
         alt={plant.name}
+        fallbackSrc={modalFallbackSrc}
         isOpen={isImageModalOpen}
         onClose={() => setIsImageModalOpen(false)}
       />

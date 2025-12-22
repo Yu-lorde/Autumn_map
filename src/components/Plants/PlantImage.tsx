@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { stripBase, withBase } from '../../utils/publicUrl';
 
 interface PlantImageProps {
   src: string;
@@ -17,7 +18,7 @@ export default function PlantImage({
   fallbackSrc,
   className = '' 
 }: PlantImageProps) {
-  const [imgSrc, setImgSrc] = useState(src);
+  const [imgSrc, setImgSrc] = useState(withBase(src));
   const [retryIndex, setRetryIndex] = useState(0);
   const [hasError, setHasError] = useState(false);
 
@@ -25,25 +26,28 @@ export default function PlantImage({
 
   // 当 src prop 改变时，同步更新 imgSrc 并重置状态
   useEffect(() => {
-    setImgSrc(src);
+    setImgSrc(withBase(src));
     setRetryIndex(0);
     setHasError(false);
   }, [src]);
 
   const handleError = () => {
-    // 检查是否是本地植物图片路径 (以 /plant-images/ 开头)
-    const isLocalPlantImage = imgSrc.startsWith('/plant-images/');
+    const normalizedFallback = fallbackSrc ? withBase(fallbackSrc) : '';
+
+    // 检查是否是本地植物图片路径 (public/plant-images 下)
+    const currentRelative = stripBase(imgSrc);
+    const isLocalPlantImage = currentRelative.startsWith('plant-images/');
     
     if (isLocalPlantImage && retryIndex < extensions.length - 1) {
       // 尝试下一个扩展名
       const nextIndex = retryIndex + 1;
-      const lastDotIndex = src.lastIndexOf('.');
-      const basePath = lastDotIndex !== -1 ? src.substring(0, lastDotIndex) : src;
-      setImgSrc(`${basePath}${extensions[nextIndex]}`);
+      const relativeSrc = stripBase(src);
+      const basePath = relativeSrc.replace(/\.[^.\/]+$/, '');
+      setImgSrc(withBase(`${basePath}${extensions[nextIndex]}`));
       setRetryIndex(nextIndex);
-    } else if (!hasError && fallbackSrc && imgSrc !== fallbackSrc) {
+    } else if (!hasError && normalizedFallback && imgSrc !== normalizedFallback) {
       // 如果所有本地扩展名都失败，且存在备用图片，则切换到备用图片
-      setImgSrc(fallbackSrc);
+      setImgSrc(normalizedFallback);
       setHasError(true);
     }
   };
@@ -53,6 +57,8 @@ export default function PlantImage({
       src={imgSrc}
       alt={alt}
       className={className}
+      loading="lazy"
+      decoding="async"
       onError={handleError}
     />
   );

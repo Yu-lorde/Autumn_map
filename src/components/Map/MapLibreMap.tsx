@@ -5,7 +5,8 @@ import { useMapStore } from '../../stores/mapStore';
 import { useMapContext } from '../../contexts/MapContext';
 import { getAllPlantInstances, plants } from '../../data/plantsData';
 import { localLightStyle, localSatelliteStyle } from '../../utils/localMapStyles';
-import { wgs84ToGcj02 } from '../../utils/coordUtils';
+import { gcj02ToWgs84, wgs84ToGcj02 } from '../../utils/coordUtils';
+import { parsePlantDescription } from '../../utils/plantDescription';
 
 interface MapContainerProps {
   center: [number, number];
@@ -20,10 +21,28 @@ export default function MapLibreMap({ center, zoom }: MapContainerProps) {
   const popupsRef = useRef<maplibregl.Popup[]>([]); // 存储所有 popup 实例的引用
   const clusterMarkersRef = useRef<maplibregl.Marker[]>([]); // 聚合标记
   const navControlRef = useRef<maplibregl.NavigationControl | null>(null);
-  const { currentLayer } = useMapStore();
+  const { currentLayer, isSidebarOpen, toggleSidebar } = useMapStore();
   const { setMap, setRoutingControl } = useMapContext();
   const [mapLoaded, setMapLoaded] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [hoverCoord, setHoverCoord] = useState<{
+    gcj: { lat: number; lng: number };
+    wgs: { lat: number; lng: number };
+    pixel: { x: number; y: number };
+  } | null>(null);
+
+  // 临时调试：URL 带 ?debug=1 或 ?debug=coords 时，显示鼠标悬停坐标
+  const debugParam = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('debug') : null;
+  const debugCoordsEnabled = debugParam === '1' || debugParam === 'coords';
+
+  const notifySelectPlant = (plantId: string, locationIndex: number) => {
+    // 让左侧卡片切换到对应植物（不与组件耦合，用事件传递）
+    window.dispatchEvent(
+      new CustomEvent('plant-marker-click', {
+        detail: { plantId, locationIndex }
+      })
+    );
+  };
 
   // 优化：初始化地图时加载组合样式（包含 light 和 satellite 两个源）
   // 切换图层时只改变图层可见性，不重新下载瓦片
@@ -312,15 +331,30 @@ export default function MapLibreMap({ center, zoom }: MapContainerProps) {
           color: #78350f;
           font-size: 12px;
           line-height: 1.4;
+          white-space: pre-line; /* 保持文本中的换行符 */
           display: -webkit-box;
           -webkit-line-clamp: 2;
           -webkit-box-orient: vertical;
           overflow: hidden;
         `;
-        const descriptionText = plantInstance.description.length > 60 
-          ? plantInstance.description.substring(0, 60) + '...'
-          : plantInstance.description;
-        descriptionDiv.textContent = descriptionText; // 使用 textContent 防止 XSS
+        const fullText = plantInstance.description || '';
+        const descriptionText = fullText.length > 60 ? fullText.substring(0, 60) + '...' : fullText;
+        // 逐行解析（与 PlantCard 共用同一份解析逻辑，避免重复）
+        const parts = parsePlantDescription(descriptionText);
+        parts.forEach((part, i) => {
+          if (part.type === 'prefixed') {
+            const strong = document.createElement('strong');
+            strong.style.fontWeight = '600';
+            strong.textContent = part.prefix;
+            descriptionDiv.appendChild(strong);
+            descriptionDiv.appendChild(document.createTextNode(part.text || ''));
+          } else {
+            descriptionDiv.appendChild(document.createTextNode(part.text));
+          }
+          if (i !== parts.length - 1) {
+            descriptionDiv.appendChild(document.createElement('br'));
+          }
+        });
         
         contentDiv.appendChild(latinDiv);
         contentDiv.appendChild(descriptionDiv);
@@ -358,6 +392,12 @@ export default function MapLibreMap({ center, zoom }: MapContainerProps) {
 
         // 添加点击事件：移动地图到植物位置并显示气泡
         el.addEventListener('click', () => {
+          // 点击地图钉时，自动打开侧边栏并切换到对应卡片
+          if (!isSidebarOpen) {
+            toggleSidebar();
+          }
+          notifySelectPlant(plantInstance.plantId, plantInstance.locationIndex);
+
           // 关闭其他已打开的 popup（使用 ref 中维护的实例引用）
           popupsRef.current.forEach((existingPopup) => {
             if (existingPopup !== popup && existingPopup.isOpen()) {
@@ -699,6 +739,55 @@ export default function MapLibreMap({ center, zoom }: MapContainerProps) {
     };
   }, [center, zoom]);
 
+  // 调试：显示鼠标悬停处坐标（同时显示 GCJ-02 与换算后的 WGS-84）
+  useEffect(() => {
+    if (!debugCoordsEnabled) return;
+    if (!mapLoaded) return;
+    const map = mapInstanceRef.current;
+    if (!map) return;
+
+    let raf = 0;
+    let latest: { lng: number; lat: number; x: number; y: number } | null = null;
+
+    const flush = () => {
+      raf = 0;
+      if (!latest) return;
+      const { lng, lat, x, y } = latest;
+      const [wgsLat, wgsLng] = gcj02ToWgs84(lat, lng);
+      setHoverCoord({
+        gcj: { lat, lng },
+        wgs: { lat: wgsLat, lng: wgsLng },
+        pixel: { x, y }
+      });
+    };
+
+    const onMove = (e: maplibregl.MapMouseEvent) => {
+      latest = { lng: e.lngLat.lng, lat: e.lngLat.lat, x: e.point.x, y: e.point.y };
+      if (!raf) raf = window.requestAnimationFrame(flush);
+    };
+
+    const onLeave = () => {
+      latest = null;
+      if (raf) {
+        window.cancelAnimationFrame(raf);
+        raf = 0;
+      }
+      setHoverCoord(null);
+    };
+
+    // 更容易对点位进行校准
+    map.getCanvas().style.cursor = 'crosshair';
+    map.on('mousemove', onMove);
+    map.on('mouseout', onLeave);
+
+    return () => {
+      map.getCanvas().style.cursor = '';
+      map.off('mousemove', onMove);
+      map.off('mouseout', onLeave);
+      if (raf) window.cancelAnimationFrame(raf);
+    };
+  }, [debugCoordsEnabled, mapLoaded]);
+
   // 优化：动态加载图层，参考 Leaflet 的快速加载方式
   // 初始只加载当前图层，切换到另一个图层时动态加载
   useEffect(() => {
@@ -820,6 +909,21 @@ export default function MapLibreMap({ center, zoom }: MapContainerProps) {
             <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin shadow-lg"></div>
             <span className="text-sm font-medium text-orange-700">地图加载中</span>
           </div>
+        </div>
+      )}
+
+      {debugCoordsEnabled && hoverCoord && (
+        <div
+          className="absolute left-3 top-3 z-20 rounded-lg border border-orange-200/70 bg-white/90 backdrop-blur-sm px-3 py-2 text-xs text-orange-900 shadow-md"
+          style={{ pointerEvents: 'none' }}
+        >
+          <div className="font-semibold text-orange-700">坐标调试（悬停）</div>
+          <div className="mt-1">
+            <div>WGS84: {hoverCoord.wgs.lat.toFixed(6)}, {hoverCoord.wgs.lng.toFixed(6)}</div>
+            <div>GCJ02: {hoverCoord.gcj.lat.toFixed(6)}, {hoverCoord.gcj.lng.toFixed(6)}</div>
+            <div>像素: {Math.round(hoverCoord.pixel.x)}, {Math.round(hoverCoord.pixel.y)}</div>
+          </div>
+          <div className="mt-1 text-[11px] text-orange-800/80">提示：用 WGS84 去改数据</div>
         </div>
       )}
     </div>

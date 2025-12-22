@@ -336,14 +336,14 @@
         ];
 
         // 默认备用起点（浙大南门）
-        const FALLBACK_START = [30.29517, 120.08215];
+        const FALLBACK_START = [30.295381, 120.082144];
         let userMarker = null;
 
         const map = L.map('map', {
             zoomControl: false,
             minZoom: 10,
             maxZoom: 18
-        }).setView([30.3081, 120.0827], 15);
+        }).setView([30.295381, 120.082144], 15);
 
         const layers = {
             sat: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {

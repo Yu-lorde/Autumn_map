@@ -8,7 +8,9 @@
     "build": "tsc && vite build",
     "build:standalone": "tsc && cross-env BUILD_STANDALONE=true vite build --outDir dist-standalone",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "calibrate:route": "node scripts/calibrate-route-factor.js",
+    "apply:calibration": "node scripts/apply-calibration.js"
   },
   "dependencies": {
     "maplibre-gl": "^3.6.2",

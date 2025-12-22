@@ -1,9 +1,11 @@
 import { useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import PlantImage from './PlantImage';
 
 interface ImageModalProps {
   src: string;
   alt: string;
+  fallbackSrc?: string;
   isOpen: boolean;
   onClose: () => void;
 }
@@ -13,7 +15,7 @@ interface ImageModalProps {
  * 全屏显示图片，点击背景或ESC键关闭
  * 使用 Portal 渲染到 body，确保真正的全屏显示
  */
-export default function ImageModal({ src, alt, isOpen, onClose }: ImageModalProps) {
+export default function ImageModal({ src, alt, fallbackSrc, isOpen, onClose }: ImageModalProps) {
   // ESC键关闭
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
@@ -60,11 +62,11 @@ export default function ImageModal({ src, alt, isOpen, onClose }: ImageModalProp
         className="relative max-w-[90vw] max-h-[90vh] flex items-center justify-center"
         onClick={(e) => e.stopPropagation()}
       >
-        <img
+        <PlantImage
           src={src}
           alt={alt}
+          fallbackSrc={fallbackSrc}
           className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl"
-          onClick={onClose}
         />
       </div>
 
