@@ -272,6 +272,11 @@ export default function PlantList(props: { variant?: 'desktop' | 'mobile' } = {}
       map.fitBounds(bounds, { padding: 100 });
     }
 
+    // 移动端自动收起抽屉，让用户看到完整路线
+    if (props.variant === 'mobile') {
+      setSidebarOpen(false);
+    }
+
     setTimeout(hideStatus, 6000);
   };
 
