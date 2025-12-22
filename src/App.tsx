@@ -31,9 +31,21 @@ function App() {
   // 手机端默认收起列表，避免首屏被抽屉遮住
   useEffect(() => {
     const mql = window.matchMedia('(min-width: 768px)');
-    if (!mql.matches) setSidebarOpen(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    const collapseIfMobile = (matches: boolean) => {
+      if (!matches) setSidebarOpen(false);
+    };
+
+    collapseIfMobile(mql.matches);
+
+    const onChange = (e: MediaQueryListEvent) => collapseIfMobile(e.matches);
+    // Safari < 14
+    if (mql.addEventListener) {
+      mql.addEventListener('change', onChange);
+      return () => mql.removeEventListener('change', onChange);
+    }
+    mql.addListener(onChange);
+    return () => mql.removeListener(onChange);
+  }, [setSidebarOpen]);
 
   return (
     <MapProvider>

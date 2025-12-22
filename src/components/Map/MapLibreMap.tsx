@@ -6,6 +6,7 @@ import { useMapContext } from '../../contexts/MapContext';
 import { getAllPlantInstances, plants } from '../../data/plantsData';
 import { localLightStyle, localSatelliteStyle } from '../../utils/localMapStyles';
 import { gcj02ToWgs84, wgs84ToGcj02 } from '../../utils/coordUtils';
+import { parsePlantDescription } from '../../utils/plantDescription';
 
 interface MapContainerProps {
   center: [number, number];
@@ -338,20 +339,19 @@ export default function MapLibreMap({ center, zoom }: MapContainerProps) {
         `;
         const fullText = plantInstance.description || '';
         const descriptionText = fullText.length > 60 ? fullText.substring(0, 60) + '...' : fullText;
-        // 逐行解析，遇到固定前缀则将前缀用 <strong> 包裹
-        const lines = descriptionText.split('\n');
-        lines.forEach((line, i) => {
-          const m = line.match(/^(坐标数据：|植物志记录：|气味数据：|情绪数据：)([\s\S]*)$/);
-          if (m) {
+        // 逐行解析（与 PlantCard 共用同一份解析逻辑，避免重复）
+        const parts = parsePlantDescription(descriptionText);
+        parts.forEach((part, i) => {
+          if (part.type === 'prefixed') {
             const strong = document.createElement('strong');
             strong.style.fontWeight = '600';
-            strong.textContent = m[1];
+            strong.textContent = part.prefix;
             descriptionDiv.appendChild(strong);
-            descriptionDiv.appendChild(document.createTextNode(m[2] || ''));
+            descriptionDiv.appendChild(document.createTextNode(part.text || ''));
           } else {
-            descriptionDiv.appendChild(document.createTextNode(line));
+            descriptionDiv.appendChild(document.createTextNode(part.text));
           }
-          if (i !== lines.length - 1) {
+          if (i !== parts.length - 1) {
             descriptionDiv.appendChild(document.createElement('br'));
           }
         });
