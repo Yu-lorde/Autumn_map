@@ -1,12 +1,14 @@
 import { useEffect } from 'react';
 import { isIOSDevice, openNavigation, type NavigationMode, type MapProvider } from '../../utils/systemNavigation';
+import { agentLog } from '../../utils/agentLog';
 
 export interface NavigationSheetProps {
   isOpen: boolean;
   onClose: () => void;
   dest: { lat: number; lng: number; name?: string };
   mode?: NavigationMode;
-  onInternalNavigate?: () => void;
+  onInternalNavigate?: (dest: { lat: number; lng: number; name?: string }, plantInfo?: { plantId: string; locationIndex: number }) => void;
+  navInternal?: { plantId: string; locationIndex: number } | null;
   variant?: 'desktop' | 'mobile';
 }
 
@@ -89,7 +91,7 @@ const MapIcons = {
   ),
 };
 
-export default function NavigationSheet({ isOpen, onClose, dest, mode = 'walk', onInternalNavigate, variant = 'mobile' }: NavigationSheetProps) {
+export default function NavigationSheet({ isOpen, onClose, dest, mode = 'walk', onInternalNavigate, navInternal, variant = 'mobile' }: NavigationSheetProps) {
   useEffect(() => {
     if (!isOpen) return;
     const onKeyDown = (e: KeyboardEvent) => {
@@ -112,6 +114,11 @@ export default function NavigationSheet({ isOpen, onClose, dest, mode = 'walk', 
   }, [isOpen, variant]);
 
   if (!isOpen) return null;
+
+  // #region agent log
+  fetch('http://127.0.0.1:7243/ingest/4eae8db4-22c8-438a-9d91-32fd1911a281',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'F',location:'NavigationSheet.tsx:render(open)',message:'navigation sheet rendered (open)',data:{variant,hasOnInternalNavigate:!!onInternalNavigate,hasNavInternal:!!navInternal,destHasName:!!dest?.name,destLatFinite:Number.isFinite(dest?.lat),destLngFinite:Number.isFinite(dest?.lng)},timestamp:Date.now()})}).catch(()=>{});
+  agentLog({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'F',location:'NavigationSheet.tsx:render(open):beacon',message:'navigation sheet rendered (open)',data:{variant,hasOnInternalNavigate:!!onInternalNavigate,hasNavInternal:!!navInternal,destHasName:!!dest?.name,destLatFinite:Number.isFinite(dest?.lat),destLngFinite:Number.isFinite(dest?.lng)},timestamp:Date.now()});
+  // #endregion
 
   const iOS = isIOSDevice();
   const providers: Array<{ label: string; provider: MapProvider; icon: React.ReactNode }> = iOS
@@ -137,38 +144,41 @@ export default function NavigationSheet({ isOpen, onClose, dest, mode = 'walk', 
 
   const handleInternal = () => {
     if (!onInternalNavigate) return;
+    // #region agent log
+    fetch('http://127.0.0.1:7243/ingest/4eae8db4-22c8-438a-9d91-32fd1911a281',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'A',location:'NavigationSheet.tsx:handleInternal',message:'internal navigation clicked',data:{hasOnInternalNavigate:!!onInternalNavigate,hasNavInternal:!!navInternal,variant,destHasName:!!dest?.name,destLatFinite:Number.isFinite(dest?.lat),destLngFinite:Number.isFinite(dest?.lng)},timestamp:Date.now()})}).catch(()=>{});
+    agentLog({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'A',location:'NavigationSheet.tsx:handleInternal:beacon',message:'internal navigation clicked',data:{hasOnInternalNavigate:!!onInternalNavigate,hasNavInternal:!!navInternal,variant,destHasName:!!dest?.name,destLatFinite:Number.isFinite(dest?.lat),destLngFinite:Number.isFinite(dest?.lng)},timestamp:Date.now()});
+    // #endregion
+    // 修复：传入当前目的地的副本，确保即便状态清空也能执行导航
+    onInternalNavigate({ ...dest }, navInternal ? { ...navInternal } : undefined);
     onClose();
-    requestAnimationFrame(() => {
-      onInternalNavigate();
-    });
   };
 
-  // 电脑端：左侧滑出面板
+  // 电脑端：居中对话框
   if (variant === 'desktop') {
     return (
-      <div className="fixed inset-0 z-[3000]">
-        {/* overlay - 半透明遮罩 */}
+      <div className="fixed inset-0 z-[3000] flex items-center justify-center">
+        {/* overlay - 全屏增强毛玻璃遮罩 */}
         <button
           type="button"
           aria-label="关闭"
-          className="absolute inset-0 bg-black/20 backdrop-blur-[2px] transition-opacity"
+          className="absolute inset-0 bg-black/40 backdrop-blur-md transition-all duration-500"
           onClick={onClose}
         />
 
-        {/* 左侧滑出面板 */}
+        {/* 居中对话框 */}
         <div 
-          className="absolute left-[380px] top-[60px] bottom-0 w-[320px] bg-gradient-to-br from-amber-50/98 to-orange-50/98 backdrop-blur-md shadow-2xl border-r border-orange-200/40 overflow-hidden animate-slide-in-left"
+          className="relative w-[400px] max-w-[90vw] bg-white/90 backdrop-blur-2xl shadow-2xl rounded-3xl border border-orange-200/40 overflow-hidden"
           style={{
-            animation: 'slideInLeft 0.3s ease-out'
+            animation: 'dialogAppear 0.3s cubic-bezier(0.16, 1, 0.3, 1)'
           }}
         >
           {/* 头部 */}
-          <div className="px-6 py-5 border-b border-orange-200/50 bg-white/50">
+          <div className="px-6 py-5 border-b border-orange-100/50 bg-orange-50/50">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-lg font-bold text-orange-800">选择导航方式</h3>
-                <p className="text-sm text-orange-600/70 mt-0.5">
-                  {dest.name || '目的地'}
+                <h3 className="text-xl font-bold text-orange-800">选择导航方式</h3>
+                <p className="text-sm text-orange-600/70 mt-1">
+                  前往：{dest.name || '目的地'}
                 </p>
               </div>
               <button
@@ -184,13 +194,13 @@ export default function NavigationSheet({ isOpen, onClose, dest, mode = 'walk', 
           </div>
 
           {/* 导航选项 */}
-          <div className="p-4 space-y-3 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 180px)' }}>
+          <div className="p-6 space-y-4">
             {/* 本项目导航 - 突出显示 */}
             {onInternalNavigate && (
-              <div className="mb-4">
-                <p className="text-xs font-medium text-orange-500 uppercase tracking-wide mb-2 px-1">推荐</p>
+              <div className="space-y-2">
+                <p className="text-xs font-bold text-orange-500 uppercase tracking-widest px-1">推荐方式</p>
                 <DesktopNavButton
-                  label="用本项目导航"
+                  label="用本项目导航 (推荐)"
                   onClick={handleInternal}
                   icon={MapIcons.internal}
                   primary
@@ -199,9 +209,9 @@ export default function NavigationSheet({ isOpen, onClose, dest, mode = 'walk', 
             )}
 
             {/* 外部地图 */}
-            <div>
-              <p className="text-xs font-medium text-slate-400 uppercase tracking-wide mb-2 px-1">外部地图</p>
-              <div className="space-y-2">
+            <div className="space-y-2">
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest px-1">外部地图应用</p>
+              <div className="grid grid-cols-1 gap-2">
                 {providers.map((p) => (
                   <DesktopNavButton
                     key={p.provider}
@@ -215,22 +225,22 @@ export default function NavigationSheet({ isOpen, onClose, dest, mode = 'walk', 
           </div>
 
           {/* 底部提示 */}
-          <div className="absolute bottom-0 left-0 right-0 px-6 py-4 bg-gradient-to-t from-amber-50/95 to-transparent">
+          <div className="px-6 py-4 bg-orange-50/30 border-t border-orange-100/30">
             <p className="text-xs text-orange-400/80 text-center">
-              按 ESC 或点击外部区域关闭
+              点击外部或按 ESC 键即可关闭
             </p>
           </div>
         </div>
 
         <style>{`
-          @keyframes slideInLeft {
+          @keyframes dialogAppear {
             from {
               opacity: 0;
-              transform: translateX(-20px);
+              transform: scale(0.95) translateY(10px);
             }
             to {
               opacity: 1;
-              transform: translateX(0);
+              transform: scale(1) translateY(0);
             }
           }
         `}</style>
@@ -241,17 +251,17 @@ export default function NavigationSheet({ isOpen, onClose, dest, mode = 'walk', 
   // 移动端：底部抽屉
   return (
     <div className="fixed inset-0 z-[3000]">
-      {/* overlay */}
+      {/* overlay - 全屏毛玻璃遮罩 */}
       <button
         type="button"
         aria-label="关闭"
-        className="absolute inset-0 bg-black/40"
+        className="absolute inset-0 bg-black/40 backdrop-blur-sm"
         onClick={onClose}
       />
 
       {/* sheet */}
-      <div className="absolute left-0 right-0 bottom-0 px-3 pb-[max(12px,env(safe-area-inset-bottom))]">
-        <div className="mx-auto w-full max-w-md overflow-hidden rounded-2xl bg-white/95 backdrop-blur-md shadow-2xl border border-white/60">
+      <div className="absolute left-0 right-0 bottom-0 px-3 pb-[max(12px,env(safe-area-inset-bottom))] animate-slide-up">
+        <div className="mx-auto w-full max-w-md overflow-hidden rounded-3xl bg-white/90 backdrop-blur-xl shadow-2xl border border-white/60">
           <div className="py-2">
             <div className="mx-auto my-2 h-1 w-12 rounded-full bg-slate-300/70" />
             <div className="px-4 pb-2 text-center text-sm text-slate-500">
@@ -276,4 +286,3 @@ export default function NavigationSheet({ isOpen, onClose, dest, mode = 'walk', 
     </div>
   );
 }
-

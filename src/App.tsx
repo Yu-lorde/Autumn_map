@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import MapLibreMap from './components/Map/MapLibreMap';
 import PlantList from './components/Plants/PlantList';
 import Header from './components/UI/Header';
@@ -9,6 +9,7 @@ import { useMapStore } from './stores/mapStore';
 
 function App() {
   const { toggleSidebar, setSidebarOpen } = useMapStore();
+  const [isDesktop, setIsDesktop] = useState(() => window.matchMedia('(min-width: 768px)').matches);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -32,6 +33,7 @@ function App() {
   useEffect(() => {
     const mql = window.matchMedia('(min-width: 768px)');
     const collapseIfMobile = (matches: boolean) => {
+      setIsDesktop(matches);
       if (!matches) setSidebarOpen(false);
     };
 
@@ -48,32 +50,34 @@ function App() {
   }, [setSidebarOpen]);
 
   return (
-    <MapProvider>
-      <div className="h-screen w-screen overflow-hidden bg-gradient-to-br from-autumn-bg via-amber-50/50 to-autumn-bg">
-        <Header />
-        {/* 内容区：手机/电脑完全分开 */}
-        <div className="pt-[60px] h-screen box-border relative">
-          {/* Desktop: 恢复原始布局（侧边栏 + 地图 + 把手） */}
-          <div className="hidden md:flex h-full relative">
-            <PlantList variant="desktop" />
-            <div className="flex-1 relative">
-              <MapLibreMap center={[30.3081, 120.0827]} zoom={15} />
+    <div className="h-screen w-screen overflow-hidden bg-gradient-to-br from-autumn-bg via-amber-50/50 to-autumn-bg">
+      <Header />
+      {/* 内容区：只渲染当前端（避免两个 MapLibreMap 同时挂载导致上下文错绑、路线画在隐藏地图上） */}
+      <div className="pt-[60px] h-screen box-border relative">
+        {isDesktop ? (
+          <MapProvider>
+            <div className="h-full relative flex">
+              <PlantList variant="desktop" />
+              <div className="flex-1 relative">
+                <MapLibreMap center={[30.3081, 120.0827]} zoom={15} />
+              </div>
+              <Sidebar variant="desktop" />
             </div>
-            <Sidebar variant="desktop" />
-          </div>
-
-          {/* Mobile: 地图全屏 + 底部抽屉 + 浮动入口 */}
-          <div className="md:hidden h-full relative">
-            <div className="absolute inset-0">
-              <MapLibreMap center={[30.3081, 120.0827]} zoom={15} />
+          </MapProvider>
+        ) : (
+          <MapProvider>
+            <div className="h-full relative">
+              <div className="absolute inset-0">
+                <MapLibreMap center={[30.3081, 120.0827]} zoom={15} />
+              </div>
+              <PlantList variant="mobile" />
+              <Sidebar variant="mobile" />
             </div>
-            <PlantList variant="mobile" />
-            <Sidebar variant="mobile" />
-          </div>
-        </div>
-        <StatusBar />
+          </MapProvider>
+        )}
       </div>
-    </MapProvider>
+      <StatusBar />
+    </div>
   );
 }
 

@@ -7,6 +7,7 @@ import { FALLBACK_START } from '../../data/plantsData';
 import { showStatus, hideStatus } from '../UI/StatusBar';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import NavigationSheet from '../UI/NavigationSheet';
+import { agentLog } from '../../utils/agentLog';
 
 export default function PlantList(props: { variant?: 'desktop' | 'mobile' } = {}) {
   const { isSidebarOpen, setSidebarOpen } = useMapStore();
@@ -212,20 +213,41 @@ export default function PlantList(props: { variant?: 'desktop' | 'mobile' } = {}
     // 打开底部“选择地图”面板（不再在应用内画路线）
     setNavDest({ lat: location.coords[0], lng: location.coords[1], name: `${plant.name}${plant.locations.length > 1 ? `-${locationIndex + 1}` : ''}` });
     setNavInternal({ plantId: id, locationIndex });
+    // #region agent log
+    fetch('http://127.0.0.1:7243/ingest/4eae8db4-22c8-438a-9d91-32fd1911a281',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'F',location:'PlantList.tsx:handleNavigate',message:'open navigation sheet',data:{plantId:id,locationIndex,hasMap:!!map,hasRoutingControl:!!routingControl},timestamp:Date.now()})}).catch(()=>{});
+    agentLog({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'F',location:'PlantList.tsx:handleNavigate:beacon',message:'open navigation sheet',data:{plantId:id,locationIndex,hasMap:!!map,hasRoutingControl:!!routingControl},timestamp:Date.now()});
+    // #endregion
   };
 
-  const handleInternalNavigate = async () => {
-    if (!navInternal) return;
-    const plant = plants.find(p => p.id === navInternal.plantId);
-    if (!plant || !map || !routingControl) return;
+  const handleInternalNavigate = async (dest: { lat: number; lng: number; name?: string }, plantInfo?: { plantId: string; locationIndex: number }) => {
+    // #region agent log
+    fetch('http://127.0.0.1:7243/ingest/4eae8db4-22c8-438a-9d91-32fd1911a281',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'A',location:'PlantList.tsx:handleInternalNavigate(entry)',message:'handleInternalNavigate called',data:{hasPlantInfo:!!plantInfo,hasMap:!!map,hasRoutingControl:!!routingControl,destLatFinite:Number.isFinite(dest?.lat),destLngFinite:Number.isFinite(dest?.lng)},timestamp:Date.now()})}).catch(()=>{});
+    agentLog({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'A',location:'PlantList.tsx:handleInternalNavigate(entry):beacon',message:'handleInternalNavigate called',data:{hasPlantInfo:!!plantInfo,hasMap:!!map,hasRoutingControl:!!routingControl,destLatFinite:Number.isFinite(dest?.lat),destLngFinite:Number.isFinite(dest?.lng)},timestamp:Date.now()});
+    // #endregion
 
-    const location = plant.locations[navInternal.locationIndex];
+    if (!plantInfo) {
+      // #region agent log
+      fetch('http://127.0.0.1:7243/ingest/4eae8db4-22c8-438a-9d91-32fd1911a281',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'A',location:'PlantList.tsx:handleInternalNavigate',message:'early return: missing plantInfo',data:{},timestamp:Date.now()})}).catch(()=>{});
+      agentLog({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'A',location:'PlantList.tsx:handleInternalNavigate(missingPlantInfo):beacon',message:'early return: missing plantInfo',data:{},timestamp:Date.now()});
+      // #endregion
+      return;
+    }
+    const plant = plants.find(p => p.id === plantInfo.plantId);
+    if (!plant || !map || !routingControl) {
+      // #region agent log
+      fetch('http://127.0.0.1:7243/ingest/4eae8db4-22c8-438a-9d91-32fd1911a281',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'A',location:'PlantList.tsx:handleInternalNavigate',message:'early return: missing plant/map/routingControl',data:{hasPlant:!!plant,hasMap:!!map,hasRoutingControl:!!routingControl},timestamp:Date.now()})}).catch(()=>{});
+      agentLog({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'A',location:'PlantList.tsx:handleInternalNavigate(missingDeps):beacon',message:'early return: missing plant/map/routingControl',data:{hasPlant:!!plant,hasMap:!!map,hasRoutingControl:!!routingControl},timestamp:Date.now()});
+      // #endregion
+      return;
+    }
+
+    const location = plant.locations[plantInfo.locationIndex];
     if (!location) return;
 
-    // 创建 PlantInstance 用于导航（沿用项目原有逻辑）
+    // 创建 PlantInstance 用于导航（直接使用传入的数据）
     const plantInstance: PlantInstance = {
       plantId: plant.id,
-      locationIndex: navInternal.locationIndex,
+      locationIndex: plantInfo.locationIndex,
       name: plant.name,
       latin: plant.latin,
       tag: plant.tag,
@@ -415,7 +437,8 @@ export default function PlantList(props: { variant?: 'desktop' | 'mobile' } = {}
           setNavInternal(null);
         }}
         dest={navDest ?? { lat: 0, lng: 0 }}
-        onInternalNavigate={navInternal ? handleInternalNavigate : undefined}
+        onInternalNavigate={handleInternalNavigate}
+        navInternal={navInternal}
         variant={props.variant}
       />
     </>
