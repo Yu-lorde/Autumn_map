@@ -44,6 +44,22 @@ export default function MapLibreMap({ center, zoom }: MapContainerProps) {
     );
   };
 
+  // 处理页面从 bfcache 恢复的情况（如从外部地图应用返回）
+  useEffect(() => {
+    const handlePageShow = (event: PageTransitionEvent) => {
+      // 如果页面是从 bfcache 恢复的
+      if (event.persisted && mapInstanceRef.current) {
+        // 强制地图重新渲染以修复可能的显示问题
+        mapInstanceRef.current.resize();
+      }
+    };
+
+    window.addEventListener('pageshow', handlePageShow);
+    return () => {
+      window.removeEventListener('pageshow', handlePageShow);
+    };
+  }, []);
+
   // 优化：初始化地图时加载组合样式（包含 light 和 satellite 两个源）
   // 切换图层时只改变图层可见性，不重新下载瓦片
   useEffect(() => {
@@ -814,6 +830,13 @@ export default function MapLibreMap({ center, zoom }: MapContainerProps) {
         clusterMarker.remove();
       });
       clusterMarkersRef.current = [];
+      
+      // 清理所有植物标记
+      markersRef.current.forEach(marker => {
+        marker.remove();
+      });
+      markersRef.current = [];
+      markersMapRef.current.clear();
       
       // 清理地图实例（会自动清理所有事件监听器）
       if (mapInstanceRef.current) {
