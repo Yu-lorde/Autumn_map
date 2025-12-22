@@ -407,6 +407,7 @@ export default function PlantList(props: { variant?: 'desktop' | 'mobile' } = {}
         }}
         dest={navDest ?? { lat: 0, lng: 0 }}
         onInternalNavigate={navInternal ? handleInternalNavigate : undefined}
+        variant={props.variant}
       />
     </>
   );
