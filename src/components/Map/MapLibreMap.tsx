@@ -7,6 +7,7 @@ import { getAllPlantInstances, plants } from '../../data/plantsData';
 import { localLightStyle, localSatelliteStyle } from '../../utils/localMapStyles';
 import { gcj02ToWgs84, wgs84ToGcj02 } from '../../utils/coordUtils';
 import { parsePlantDescription } from '../../utils/plantDescription';
+import { agentLog } from '../../utils/agentLog';
 
 interface MapContainerProps {
   center: [number, number];
@@ -282,6 +283,11 @@ export default function MapLibreMap({ center, zoom }: MapContainerProps) {
           'circle-opacity': 0.3
         }
       }, 'user-location-layer'); // 插入到主图层下方
+
+      // #region agent log
+      fetch('http://127.0.0.1:7243/ingest/4eae8db4-22c8-438a-9d91-32fd1911a281',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'B',location:'MapLibreMap.tsx:map(load)',message:'map loaded; route layers and sources status',data:{hasRouteSource:!!map.getSource('route'),hasRouteLayer:!!map.getLayer('route-layer'),hasRouteOutline:!!map.getLayer('route-layer-outline'),styleLoaded:map.loaded?.()===true},timestamp:Date.now()})}).catch(()=>{});
+      agentLog({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'B',location:'MapLibreMap.tsx:map(load):beacon',message:'map loaded; route layers and sources status',data:{hasRouteSource:!!map.getSource('route'),hasRouteLayer:!!map.getLayer('route-layer'),hasRouteOutline:!!map.getLayer('route-layer-outline'),styleLoaded:map.loaded?.()===true},timestamp:Date.now()});
+      // #endregion
       
       // 添加植物标记（每个位置都会创建一个标记）
       const plantInstances = getAllPlantInstances();
@@ -716,6 +722,12 @@ export default function MapLibreMap({ center, zoom }: MapContainerProps) {
           if (waypoints.length < 2) return;
           const start = waypoints[0];
           const end = waypoints[1];
+
+          // #region agent log
+          const inChinaBox = (lat: number, lng: number) => Number.isFinite(lat) && Number.isFinite(lng) && lat > 18 && lat < 54 && lng > 73 && lng < 136;
+          fetch('http://127.0.0.1:7243/ingest/4eae8db4-22c8-438a-9d91-32fd1911a281',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'B',location:'MapLibreMap.tsx:routingControl.setWaypoints(entry)',message:'setWaypoints called',data:{waypointsLen:waypoints?.length,startFinite:Number.isFinite(start?.lat)&&Number.isFinite(start?.lng),endFinite:Number.isFinite(end?.lat)&&Number.isFinite(end?.lng),startInChinaBox:inChinaBox(start?.lat,start?.lng),endInChinaBox:inChinaBox(end?.lat,end?.lng),hasRouteSource:!!map.getSource('route'),hasRouteLayer:!!map.getLayer('route-layer')},timestamp:Date.now()})}).catch(()=>{});
+          agentLog({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'B',location:'MapLibreMap.tsx:routingControl.setWaypoints(entry):beacon',message:'setWaypoints called',data:{waypointsLen:waypoints?.length,startFinite:Number.isFinite(start?.lat)&&Number.isFinite(start?.lng),endFinite:Number.isFinite(end?.lat)&&Number.isFinite(end?.lng),startInChinaBox:inChinaBox(start?.lat,start?.lng),endInChinaBox:inChinaBox(end?.lat,end?.lng),hasRouteSource:!!map.getSource('route'),hasRouteLayer:!!map.getLayer('route-layer')},timestamp:Date.now()});
+          // #endregion
           
           // 将起点和终点转换为 GCJ-02（用于在地图上显示）
           const [startGcjLat, startGcjLng] = wgs84ToGcj02(start.lat, start.lng);
@@ -726,6 +738,9 @@ export default function MapLibreMap({ center, zoom }: MapContainerProps) {
             console.log('Using straight line fallback for route');
             const source = map.getSource('route') as maplibregl.GeoJSONSource;
             if (source) {
+              // #region agent log
+              fetch('http://127.0.0.1:7243/ingest/4eae8db4-22c8-438a-9d91-32fd1911a281',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'E',location:'MapLibreMap.tsx:drawStraightLine',message:'drawing straight line fallback',data:{hasRouteSource:!!source,startGcjFinite:Number.isFinite(startGcjLat)&&Number.isFinite(startGcjLng),endGcjFinite:Number.isFinite(endGcjLat)&&Number.isFinite(endGcjLng)},timestamp:Date.now()})}).catch(()=>{});
+              // #endregion
               source.setData({
                 type: 'Feature',
                 properties: {},
@@ -777,6 +792,9 @@ export default function MapLibreMap({ center, zoom }: MapContainerProps) {
                   });
                 }
                 console.log('Route loaded successfully with', route.coordinates.length, 'points');
+                // #region agent log
+                fetch('http://127.0.0.1:7243/ingest/4eae8db4-22c8-438a-9d91-32fd1911a281',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'C',location:'MapLibreMap.tsx:osrm(success)',message:'OSRM route loaded',data:{httpOk:true,routeType:route?.type,routePoints:Array.isArray(route?.coordinates)?route.coordinates.length:0,hasRouteSource:!!map.getSource('route')},timestamp:Date.now()})}).catch(()=>{});
+                // #endregion
               } else {
                 // 路线数据无效，使用直线
                 drawStraightLine();
@@ -789,6 +807,9 @@ export default function MapLibreMap({ center, zoom }: MapContainerProps) {
           } catch (err) {
             // 请求失败（网络问题、超时等），使用直线作为备用
             console.warn('Failed to fetch route, using straight line:', err);
+            // #region agent log
+            fetch('http://127.0.0.1:7243/ingest/4eae8db4-22c8-438a-9d91-32fd1911a281',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'C',location:'MapLibreMap.tsx:osrm(catch)',message:'OSRM fetch failed; fallback to straight line',data:{errName:(err as any)?.name,errMessage:String((err as any)?.message||''),hasRouteSource:!!map.getSource('route')},timestamp:Date.now()})}).catch(()=>{});
+            // #endregion
             drawStraightLine();
           }
         },
