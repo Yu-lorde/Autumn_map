@@ -64,9 +64,18 @@ export default function PlantList(props: { variant?: 'desktop' | 'mobile' } = {}
 
   // 点击地图区域收起抽屉（仅移动端）
   useEffect(() => {
+    // 只在移动端且侧边栏打开时启用
     if (props.variant !== 'mobile' || !isSidebarOpen) return;
+    
+    // 额外检查：确保当前视口确实是移动端宽度
+    // 因为手机端和电脑端的 PlantList 都挂载在 DOM 中，只是通过 CSS 隐藏
+    const isMobileViewport = () => window.innerWidth < 768;
+    if (!isMobileViewport()) return;
 
     const handleMapClick = (e: MouseEvent | TouchEvent) => {
+      // 再次检查视口宽度，防止窗口大小改变
+      if (!isMobileViewport()) return;
+      
       // 检查点击目标是否在抽屉外部
       if (drawerRef.current && !drawerRef.current.contains(e.target as Node)) {
         // 确保不是点击在 Sidebar 按钮上
