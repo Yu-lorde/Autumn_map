@@ -27,11 +27,18 @@ export function buildAppleMapsUrl(params: {
   mode?: NavigationMode;
 }) {
   const { dest, origin, mode = 'walk' } = params;
+  // Apple Maps 在中国大陆与高德合作，使用 GCJ-02 坐标系
+  // 需要将 WGS-84 坐标转换为 GCJ-02
+  const [gcjDestLat, gcjDestLng] = wgs84ToGcj02(dest.lat, dest.lng);
+  
   // Apple Maps: https://maps.apple.com/?daddr=lat,lng&dirflg=w
   const dirflg = mode === 'walk' ? 'w' : mode === 'drive' ? 'd' : 'r';
   const qs = new URLSearchParams();
-  qs.set('daddr', `${dest.lat},${dest.lng}`);
-  if (origin) qs.set('saddr', `${origin.lat},${origin.lng}`);
+  qs.set('daddr', `${gcjDestLat},${gcjDestLng}`);
+  if (origin) {
+    const [gcjOriginLat, gcjOriginLng] = wgs84ToGcj02(origin.lat, origin.lng);
+    qs.set('saddr', `${gcjOriginLat},${gcjOriginLng}`);
+  }
   qs.set('dirflg', dirflg);
   return `https://maps.apple.com/?${qs.toString()}`;
 }
@@ -44,17 +51,21 @@ export function buildDeviceMapUrl(params: {
 
   if (isIOSDevice()) {
     // iOS: 直接唤起 Apple Maps App
+    // Apple Maps 在中国大陆使用 GCJ-02 坐标系
+    const [gcjLat, gcjLng] = wgs84ToGcj02(dest.lat, dest.lng);
     const dirflg = mode === 'walk' ? 'w' : mode === 'drive' ? 'd' : 'r';
     const qs = new URLSearchParams();
-    qs.set('daddr', `${dest.lat},${dest.lng}`);
+    qs.set('daddr', `${gcjLat},${gcjLng}`);
     qs.set('dirflg', dirflg);
     return `maps://?${qs.toString()}`;
   }
 
   // Android: geo scheme（由系统/已安装地图接管）
+  // 大多数中国地图应用使用 GCJ-02 坐标系
+  const [gcjLat, gcjLng] = wgs84ToGcj02(dest.lat, dest.lng);
   const name = encodeURIComponent(safeLabel(dest.name));
   // geo:lat,lng?q=lat,lng(name)
-  return `geo:${dest.lat},${dest.lng}?q=${dest.lat},${dest.lng}(${name})`;
+  return `geo:${gcjLat},${gcjLng}?q=${gcjLat},${gcjLng}(${name})`;
 }
 
 export function buildTencentMapsUrl(params: {

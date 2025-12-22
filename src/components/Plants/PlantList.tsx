@@ -5,11 +5,11 @@ import { useMapStore } from '../../stores/mapStore';
 import { useMapContext } from '../../contexts/MapContext';
 import { FALLBACK_START } from '../../data/plantsData';
 import { showStatus, hideStatus } from '../UI/StatusBar';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import NavigationSheet from '../UI/NavigationSheet';
 
 export default function PlantList(props: { variant?: 'desktop' | 'mobile' } = {}) {
-  const { isSidebarOpen } = useMapStore();
+  const { isSidebarOpen, setSidebarOpen } = useMapStore();
   const { map, routingControl } = useMapContext();
   const [currentPlantIndex, setCurrentPlantIndex] = useState(0);
   const [navDest, setNavDest] = useState<{ lat: number; lng: number; name?: string } | null>(null);
@@ -21,6 +21,75 @@ export default function PlantList(props: { variant?: 'desktop' | 'mobile' } = {}
       return acc;
     }, {} as Record<string, number>)
   );
+
+  // 触摸手势相关状态
+  const drawerRef = useRef<HTMLElement>(null);
+  const touchStartY = useRef<number>(0);
+  const touchCurrentY = useRef<number>(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragOffset, setDragOffset] = useState(0);
+
+  // 处理触摸开始
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    touchStartY.current = e.touches[0].clientY;
+    touchCurrentY.current = e.touches[0].clientY;
+    setIsDragging(true);
+    setDragOffset(0);
+  }, []);
+
+  // 处理触摸移动
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    touchCurrentY.current = e.touches[0].clientY;
+    const deltaY = touchCurrentY.current - touchStartY.current;
+    
+    // 只允许向下拖动（正值），限制最大拖动距离
+    if (deltaY > 0) {
+      setDragOffset(Math.min(deltaY, 300));
+    }
+  }, []);
+
+  // 处理触摸结束
+  const handleTouchEnd = useCallback(() => {
+    const deltaY = touchCurrentY.current - touchStartY.current;
+    
+    // 如果下滑超过 80px，则收起抽屉
+    if (deltaY > 80) {
+      setSidebarOpen(false);
+    }
+    
+    // 重置拖动状态和偏移
+    setIsDragging(false);
+    setDragOffset(0);
+  }, [setSidebarOpen]);
+
+  // 点击地图区域收起抽屉（仅移动端）
+  useEffect(() => {
+    if (props.variant !== 'mobile' || !isSidebarOpen) return;
+
+    const handleMapClick = (e: MouseEvent | TouchEvent) => {
+      // 检查点击目标是否在抽屉外部
+      if (drawerRef.current && !drawerRef.current.contains(e.target as Node)) {
+        // 确保不是点击在 Sidebar 按钮上
+        const target = e.target as HTMLElement;
+        if (target.closest('[title="收起/展开列表"]') || target.closest('.plant-marker')) {
+          return;
+        }
+        setSidebarOpen(false);
+      }
+    };
+
+    // 延迟添加监听器，避免与打开抽屉的点击冲突
+    const timer = setTimeout(() => {
+      document.addEventListener('click', handleMapClick);
+      document.addEventListener('touchend', handleMapClick);
+    }, 100);
+
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener('click', handleMapClick);
+      document.removeEventListener('touchend', handleMapClick);
+    };
+  }, [props.variant, isSidebarOpen, setSidebarOpen]);
 
   const handleNext = () => {
     setCurrentPlantIndex((prev) => (prev + 1) % plants.length);
@@ -203,6 +272,11 @@ export default function PlantList(props: { variant?: 'desktop' | 'mobile' } = {}
       map.fitBounds(bounds, { padding: 100 });
     }
 
+    // 移动端自动收起抽屉，让用户看到完整路线
+    if (props.variant === 'mobile') {
+      setSidebarOpen(false);
+    }
+
     setTimeout(hideStatus, 6000);
   };
 
@@ -298,13 +372,28 @@ export default function PlantList(props: { variant?: 'desktop' | 'mobile' } = {}
 
       {(props.variant ?? 'desktop') === 'mobile' && (
         <aside
-          className={`fixed left-0 right-0 bottom-0 z-[1000] box-border transition-all duration-300 shadow-lg bg-white/95 backdrop-blur-sm border-t-2 border-orange-200/60 rounded-t-3xl ${
-            isSidebarOpen ? 'translate-y-0' : 'translate-y-full'
+          ref={drawerRef}
+          className={`fixed left-0 right-0 bottom-0 z-[1000] box-border shadow-lg bg-white/95 backdrop-blur-sm border-t-2 border-orange-200/60 rounded-t-3xl ${
+            isSidebarOpen ? '' : 'translate-y-full'
           }`}
-          style={{ overflow: isSidebarOpen ? 'visible' : 'hidden' }}
+          style={{ 
+            overflow: isSidebarOpen ? 'visible' : 'hidden',
+            transform: isSidebarOpen 
+              ? `translateY(${dragOffset}px)` 
+              : 'translateY(100%)',
+            transition: isDragging ? 'none' : 'transform 0.3s ease-out'
+          }}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
         >
-          <div className="pt-3">
-            <div className="mx-auto h-1 w-12 rounded-full bg-orange-200/80" />
+          {/* 可拖动的手柄区域 */}
+          <div 
+            className="pt-3 pb-1 cursor-grab active:cursor-grabbing touch-none"
+            style={{ touchAction: 'none' }}
+          >
+            <div className="mx-auto h-1.5 w-12 rounded-full bg-orange-300/80 hover:bg-orange-400/80 transition-colors" />
+            <div className="text-center text-xs text-orange-400/70 mt-1">下滑收起</div>
           </div>
           {Content}
         </aside>
