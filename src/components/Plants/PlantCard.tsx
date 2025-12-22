@@ -4,6 +4,7 @@ import { plants } from '../../data/plantsData';
 import PlantImage from './PlantImage';
 import { getPlantImageFallback } from '../../utils/plantImageFallbacks';
 import ImageModal from './ImageModal';
+import { parsePlantDescription } from '../../utils/plantDescription';
 
 interface PlantCardProps {
   plant: PlantInstance;
@@ -239,18 +240,17 @@ export default function PlantCard({
           
           <div className="flex-1 overflow-y-auto scrollbar-thin pr-2">
             <div className="text-sm leading-relaxed font-medium text-orange-800/90">
-              {plant.description.split('\n').map((line, idx) => {
-                const m = line.match(/^(坐标数据：|植物志记录：|气味数据：|情绪数据：)([\s\S]*)$/);
-                if (m) {
+              {parsePlantDescription(plant.description).map((part, idx) => {
+                if (part.type === 'prefixed') {
                   return (
                     <div key={idx} className="mb-1">
-                      <strong className="font-semibold">{m[1]}</strong>
-                      <span className="ml-1 whitespace-pre-line">{m[2]}</span>
+                      <strong className="font-semibold">{part.prefix}</strong>
+                      <span className="ml-1 whitespace-pre-line">{part.text}</span>
                     </div>
                   );
                 }
                 return (
-                  <div key={idx} className="whitespace-pre-line">{line}</div>
+                  <div key={idx} className="whitespace-pre-line">{part.text}</div>
                 );
               })}
             </div>

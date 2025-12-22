@@ -51,11 +51,14 @@ export default function Header() {
   };
 
   return (
-    <header className="absolute top-0 left-0 right-0 h-[60px] bg-white/95 backdrop-blur-md z-[1100] flex items-center justify-between px-5 shadow-md border-b-2 border-orange-200/60">
-      <div className="flex items-center gap-6">
-        <h1 className="m-0 text-xl text-orange-600 font-bold flex items-center gap-2 drop-shadow-sm">
+    <header className="absolute top-0 left-0 right-0 h-[60px] bg-white/95 backdrop-blur-md z-[1100] flex items-center justify-between px-3 md:px-5 shadow-md border-b-2 border-orange-200/60">
+      <div className="flex items-center gap-3 md:gap-6 min-w-0">
+        <h1 className="m-0 text-base md:text-xl text-orange-600 font-bold flex items-center gap-2 drop-shadow-sm truncate min-w-0">
           <span className="text-2xl">🍂</span>
-          浙江大学紫金港校区 · 秋季植物地图
+          <span className="truncate">
+            <span className="md:hidden">秋季植物地图</span>
+            <span className="hidden md:inline">浙江大学紫金港校区 · 秋季植物地图</span>
+          </span>
         </h1>
         
         {/* 地图切换按钮 */}
@@ -83,9 +86,9 @@ export default function Header() {
         </div>
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 flex-shrink-0">
         <button
-          className="bg-primary text-white px-4 py-1.5 rounded-lg text-sm font-semibold cursor-pointer transition-all duration-200 flex items-center gap-1 hover:scale-105 btn-primary-shine btn-shine"
+          className="bg-primary text-white px-3 md:px-4 py-1.5 rounded-lg text-xs md:text-sm font-semibold cursor-pointer transition-all duration-200 flex items-center gap-1 hover:scale-105 btn-primary-shine btn-shine"
           onClick={handleLocateMe}
           disabled={isLoading}
         >

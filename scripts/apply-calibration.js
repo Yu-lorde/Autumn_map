@@ -55,7 +55,6 @@ console.log('New values:', {
 
 // Optionally run git commit if available
 try {
-  const { execSync } = require('child_process');
   execSync(`git add "${configPath}"`);
   execSync(`git commit -m "chore(nav): apply calibration factors from scripts/calibration-result.json"`);
   console.log('Committed updated config to git.');

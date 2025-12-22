@@ -5,12 +5,15 @@ import { useMapStore } from '../../stores/mapStore';
 import { useMapContext } from '../../contexts/MapContext';
 import { FALLBACK_START } from '../../data/plantsData';
 import { showStatus, hideStatus } from '../UI/StatusBar';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import NavigationSheet from '../UI/NavigationSheet';
 
-export default function PlantList() {
-  const { isSidebarOpen } = useMapStore();
+export default function PlantList(props: { variant?: 'desktop' | 'mobile' } = {}) {
+  const { isSidebarOpen, setSidebarOpen } = useMapStore();
   const { map, routingControl } = useMapContext();
   const [currentPlantIndex, setCurrentPlantIndex] = useState(0);
+  const [navDest, setNavDest] = useState<{ lat: number; lng: number; name?: string } | null>(null);
+  const [navInternal, setNavInternal] = useState<{ plantId: string; locationIndex: number } | null>(null);
   // 为每个植物存储当前显示的位置索引
   const [plantLocationIndices, setPlantLocationIndices] = useState<Record<string, number>>(
     plants.reduce((acc, plant) => {
@@ -18,6 +21,75 @@ export default function PlantList() {
       return acc;
     }, {} as Record<string, number>)
   );
+
+  // 触摸手势相关状态
+  const drawerRef = useRef<HTMLElement>(null);
+  const touchStartY = useRef<number>(0);
+  const touchCurrentY = useRef<number>(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragOffset, setDragOffset] = useState(0);
+
+  // 处理触摸开始
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    touchStartY.current = e.touches[0].clientY;
+    touchCurrentY.current = e.touches[0].clientY;
+    setIsDragging(true);
+    setDragOffset(0);
+  }, []);
+
+  // 处理触摸移动
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    touchCurrentY.current = e.touches[0].clientY;
+    const deltaY = touchCurrentY.current - touchStartY.current;
+    
+    // 只允许向下拖动（正值），限制最大拖动距离
+    if (deltaY > 0) {
+      setDragOffset(Math.min(deltaY, 300));
+    }
+  }, []);
+
+  // 处理触摸结束
+  const handleTouchEnd = useCallback(() => {
+    const deltaY = touchCurrentY.current - touchStartY.current;
+    
+    // 如果下滑超过 80px，则收起抽屉
+    if (deltaY > 80) {
+      setSidebarOpen(false);
+    }
+    
+    // 重置拖动状态和偏移
+    setIsDragging(false);
+    setDragOffset(0);
+  }, [setSidebarOpen]);
+
+  // 点击地图区域收起抽屉（仅移动端）
+  useEffect(() => {
+    if (props.variant !== 'mobile' || !isSidebarOpen) return;
+
+    const handleMapClick = (e: MouseEvent | TouchEvent) => {
+      // 检查点击目标是否在抽屉外部
+      if (drawerRef.current && !drawerRef.current.contains(e.target as Node)) {
+        // 确保不是点击在 Sidebar 按钮上
+        const target = e.target as HTMLElement;
+        if (target.closest('[title="收起/展开列表"]') || target.closest('.plant-marker')) {
+          return;
+        }
+        setSidebarOpen(false);
+      }
+    };
+
+    // 延迟添加监听器，避免与打开抽屉的点击冲突
+    const timer = setTimeout(() => {
+      document.addEventListener('click', handleMapClick);
+      document.addEventListener('touchend', handleMapClick);
+    }, 100);
+
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener('click', handleMapClick);
+      document.removeEventListener('touchend', handleMapClick);
+    };
+  }, [props.variant, isSidebarOpen, setSidebarOpen]);
 
   const handleNext = () => {
     setCurrentPlantIndex((prev) => (prev + 1) % plants.length);
@@ -121,17 +193,30 @@ export default function PlantList() {
     return () => window.removeEventListener('plant-marker-click', onMarkerClick as EventListener);
   }, []);
 
-  const handleNavigate = async (id: string) => {
+  const handleNavigate = (id: string) => {
     const plant = plants.find(p => p.id === id);
-    if (!plant || !map || !routingControl) return;
+    if (!plant) return;
     
     const locationIndex = plantLocationIndices[id] || 0;
     const location = plant.locations[locationIndex];
-    
-    // 创建 PlantInstance 用于导航
+
+    // 打开底部“选择地图”面板（不再在应用内画路线）
+    setNavDest({ lat: location.coords[0], lng: location.coords[1], name: `${plant.name}${plant.locations.length > 1 ? `-${locationIndex + 1}` : ''}` });
+    setNavInternal({ plantId: id, locationIndex });
+  };
+
+  const handleInternalNavigate = async () => {
+    if (!navInternal) return;
+    const plant = plants.find(p => p.id === navInternal.plantId);
+    if (!plant || !map || !routingControl) return;
+
+    const location = plant.locations[navInternal.locationIndex];
+    if (!location) return;
+
+    // 创建 PlantInstance 用于导航（沿用项目原有逻辑）
     const plantInstance: PlantInstance = {
       plantId: plant.id,
-      locationIndex: locationIndex,
+      locationIndex: navInternal.locationIndex,
       name: plant.name,
       latin: plant.latin,
       tag: plant.tag,
@@ -141,7 +226,7 @@ export default function PlantList() {
     };
 
     showStatus('正在规划最佳路线...');
-    
+
     let startPoint: [number, number];
     try {
       const position = await new Promise<GeolocationPosition>((resolve, reject) => {
@@ -151,7 +236,7 @@ export default function PlantList() {
         });
       });
       startPoint = [position.coords.latitude, position.coords.longitude];
-      
+
       // 更新用户位置标记
       if (map.setUserLocation) {
         map.setUserLocation(startPoint);
@@ -161,10 +246,9 @@ export default function PlantList() {
       startPoint = FALLBACK_START;
       showStatus('定位不可用，为您展示从南门出发的路线');
     }
-    
-    // 不再显示“预计时间”（估计逻辑已移除）
+
     showStatus('导航路线已生成');
-    
+
     // 设置路线
     if (routingControl.setWaypoints) {
       routingControl.setWaypoints([
@@ -175,39 +259,38 @@ export default function PlantList() {
 
     // 自动缩放以适应全路线
     if (map.fitBounds) {
-      // 构造简单的 bounds 对象兼容适配器
       const bounds = {
-        getSouthWest: () => ({ 
-          lat: Math.min(startPoint[0], plantInstance.coords[0]), 
-          lng: Math.min(startPoint[1], plantInstance.coords[1]) 
+        getSouthWest: () => ({
+          lat: Math.min(startPoint[0], plantInstance.coords[0]),
+          lng: Math.min(startPoint[1], plantInstance.coords[1])
         }),
-        getNorthEast: () => ({ 
-          lat: Math.max(startPoint[0], plantInstance.coords[0]), 
-          lng: Math.max(startPoint[1], plantInstance.coords[1]) 
+        getNorthEast: () => ({
+          lat: Math.max(startPoint[0], plantInstance.coords[0]),
+          lng: Math.max(startPoint[1], plantInstance.coords[1])
         })
       };
       map.fitBounds(bounds, { padding: 100 });
     }
 
+    // 移动端自动收起抽屉，让用户看到完整路线
+    if (props.variant === 'mobile') {
+      setSidebarOpen(false);
+    }
+
     setTimeout(hideStatus, 6000);
   };
 
-  return (
-    <aside
-      className={`bg-white/95 backdrop-blur-sm h-full border-r-2 border-orange-200/60 z-[1000] box-border transition-all duration-400 flex flex-col items-center justify-center relative shadow-lg ${
-        isSidebarOpen ? 'w-[380px] p-6' : 'w-0 p-0 -translate-x-full overflow-hidden'
-      }`}
-      style={{ overflow: isSidebarOpen ? 'visible' : 'hidden' }}
-    >
-      <div className="w-full mb-6 text-center">
+  const Content = (
+    <>
+      <div className="w-full mb-6 text-center px-6 pt-6 md:px-0 md:pt-0 md:mb-6">
         <h2 className="text-xl font-black text-orange-600 m-0 tracking-tight drop-shadow-sm">秋季赏叶推荐</h2>
       </div>
 
-      <div className="w-full relative group" style={{ height: '420px' }}>
+      <div className="w-full relative group" style={{ height: (props.variant ?? 'desktop') === 'mobile' ? 'min(62vh, 420px)' : '420px' }}>
         {/* Carousel Arrows */}
         <button 
           onClick={handlePrev}
-          className="absolute left-[-12px] top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white backdrop-blur-sm border-2 border-orange-200/60 flex items-center justify-center text-primary hover:bg-primary hover:text-white transition-all z-10 opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 btn-light-shine btn-shine"
+          className="absolute left-[-12px] top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white backdrop-blur-sm border-2 border-orange-200/60 flex items-center justify-center text-primary hover:bg-primary hover:text-white transition-all z-10 opacity-100 md:opacity-0 md:group-hover:opacity-100 -translate-x-2 md:group-hover:translate-x-0 btn-light-shine btn-shine"
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
             <polyline points="15 18 9 12 15 6"></polyline>
@@ -216,14 +299,14 @@ export default function PlantList() {
         
         <button 
           onClick={handleNext}
-          className="absolute right-[-12px] top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white backdrop-blur-sm border-2 border-orange-200/60 flex items-center justify-center text-primary hover:bg-primary hover:text-white transition-all z-10 opacity-0 group-hover:opacity-100 translate-x-2 group-hover:translate-x-0 btn-light-shine btn-shine"
+          className="absolute right-[-12px] top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white backdrop-blur-sm border-2 border-orange-200/60 flex items-center justify-center text-primary hover:bg-primary hover:text-white transition-all z-10 opacity-100 md:opacity-0 md:group-hover:opacity-100 translate-x-2 md:group-hover:translate-x-0 btn-light-shine btn-shine"
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
             <polyline points="9 18 15 12 9 6"></polyline>
           </svg>
         </button>
 
-        <div className="w-full h-full overflow-hidden">
+        <div className="w-full h-full overflow-hidden px-2 md:px-0">
           <div 
             className="flex transition-transform duration-700 ease-in-out h-full"
             style={{ transform: `translateX(-${currentPlantIndex * 100}%)` }}
@@ -245,7 +328,6 @@ export default function PlantList() {
               return (
                 <div key={plant.id} className="min-w-full px-4 box-border h-full flex items-center justify-center relative">
                   <div className="w-full h-[380px] relative" style={{ perspective: '1000px' }}>
-                    {/* 显示当前选中的位置卡片 */}
                     <PlantCard
                       plant={plantInstance}
                       onViewLocation={handleViewLocation}
@@ -263,7 +345,7 @@ export default function PlantList() {
         </div>
       </div>
       
-      <div className="mt-2 flex gap-1.5 justify-center">
+      <div className="mt-2 mb-5 md:mb-0 flex gap-1.5 justify-center">
         {plants.map((_, idx) => (
           <div 
             key={idx}
@@ -272,6 +354,61 @@ export default function PlantList() {
           />
         ))}
       </div>
-    </aside>
+    </>
+  );
+
+  return (
+    <>
+      {(props.variant ?? 'desktop') === 'desktop' && (
+        <aside
+          className={`bg-white/95 backdrop-blur-sm h-full border-r-2 border-orange-200/60 z-[1000] box-border transition-all duration-400 flex flex-col items-center justify-center relative shadow-lg ${
+            isSidebarOpen ? 'w-[380px] p-6' : 'w-0 p-0 -translate-x-full overflow-hidden'
+          }`}
+          style={{ overflow: isSidebarOpen ? 'visible' : 'hidden' }}
+        >
+          {Content}
+        </aside>
+      )}
+
+      {(props.variant ?? 'desktop') === 'mobile' && (
+        <aside
+          ref={drawerRef}
+          className={`fixed left-0 right-0 bottom-0 z-[1000] box-border shadow-lg bg-white/95 backdrop-blur-sm border-t-2 border-orange-200/60 rounded-t-3xl ${
+            isSidebarOpen ? '' : 'translate-y-full'
+          }`}
+          style={{ 
+            overflow: isSidebarOpen ? 'visible' : 'hidden',
+            transform: isSidebarOpen 
+              ? `translateY(${dragOffset}px)` 
+              : 'translateY(100%)',
+            transition: isDragging ? 'none' : 'transform 0.3s ease-out'
+          }}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+        >
+          {/* 可拖动的手柄区域 */}
+          <div 
+            className="pt-3 pb-1 cursor-grab active:cursor-grabbing touch-none"
+            style={{ touchAction: 'none' }}
+          >
+            <div className="mx-auto h-1.5 w-12 rounded-full bg-orange-300/80 hover:bg-orange-400/80 transition-colors" />
+            <div className="text-center text-xs text-orange-400/70 mt-1">下滑收起</div>
+          </div>
+          {Content}
+        </aside>
+      )}
+
+      <NavigationSheet
+        isOpen={!!navDest}
+        onClose={() => {
+          setNavDest(null);
+          setNavInternal(null);
+        }}
+        dest={navDest ?? { lat: 0, lng: 0 }}
+        onInternalNavigate={navInternal ? handleInternalNavigate : undefined}
+        variant={props.variant}
+      />
+    </>
   );
 }

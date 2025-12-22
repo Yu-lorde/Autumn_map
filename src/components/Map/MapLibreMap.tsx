@@ -6,6 +6,7 @@ import { useMapContext } from '../../contexts/MapContext';
 import { getAllPlantInstances, plants } from '../../data/plantsData';
 import { localLightStyle, localSatelliteStyle } from '../../utils/localMapStyles';
 import { gcj02ToWgs84, wgs84ToGcj02 } from '../../utils/coordUtils';
+import { parsePlantDescription } from '../../utils/plantDescription';
 
 interface MapContainerProps {
   center: [number, number];
@@ -42,6 +43,22 @@ export default function MapLibreMap({ center, zoom }: MapContainerProps) {
       })
     );
   };
+
+  // 处理页面从 bfcache 恢复的情况（如从外部地图应用返回）
+  useEffect(() => {
+    const handlePageShow = (event: PageTransitionEvent) => {
+      // 如果页面是从 bfcache 恢复的
+      if (event.persisted && mapInstanceRef.current) {
+        // 强制地图重新渲染以修复可能的显示问题
+        mapInstanceRef.current.resize();
+      }
+    };
+
+    window.addEventListener('pageshow', handlePageShow);
+    return () => {
+      window.removeEventListener('pageshow', handlePageShow);
+    };
+  }, []);
 
   // 优化：初始化地图时加载组合样式（包含 light 和 satellite 两个源）
   // 切换图层时只改变图层可见性，不重新下载瓦片
@@ -185,7 +202,7 @@ export default function MapLibreMap({ center, zoom }: MapContainerProps) {
       setMapLoaded(true);
       setIsLoading(false);
       
-      // 添加路线源和图层
+      // 添加路线源和图层（会在切换底图时重新调整顺序）
       map.addSource('route', {
         type: 'geojson',
         data: {
@@ -209,9 +226,25 @@ export default function MapLibreMap({ center, zoom }: MapContainerProps) {
         paint: {
           'line-color': '#f97316', // 明亮的橙色
           'line-width': 6,
-          'line-opacity': 0.85
+          'line-opacity': 0.9
         }
       });
+
+      // 添加路线边框图层（增强可见性）
+      map.addLayer({
+        id: 'route-layer-outline',
+        type: 'line',
+        source: 'route',
+        layout: {
+          'line-join': 'round',
+          'line-cap': 'round'
+        },
+        paint: {
+          'line-color': '#ffffff',
+          'line-width': 10,
+          'line-opacity': 0.6
+        }
+      }, 'route-layer'); // 插入到 route-layer 下方
 
       // 添加用户位置源和图层
       map.addSource('user-location', {
@@ -231,12 +264,24 @@ export default function MapLibreMap({ center, zoom }: MapContainerProps) {
         type: 'circle',
         source: 'user-location',
         paint: {
-          'circle-radius': 8,
+          'circle-radius': 10,
           'circle-color': '#f97316', // 明亮的橙色
-          'circle-stroke-width': 3,
+          'circle-stroke-width': 4,
           'circle-stroke-color': '#ffffff'
         }
       });
+      
+      // 添加用户位置脉冲动画图层
+      map.addLayer({
+        id: 'user-location-pulse',
+        type: 'circle',
+        source: 'user-location',
+        paint: {
+          'circle-radius': 20,
+          'circle-color': '#f97316',
+          'circle-opacity': 0.3
+        }
+      }, 'user-location-layer'); // 插入到主图层下方
       
       // 添加植物标记（每个位置都会创建一个标记）
       const plantInstances = getAllPlantInstances();
@@ -338,20 +383,19 @@ export default function MapLibreMap({ center, zoom }: MapContainerProps) {
         `;
         const fullText = plantInstance.description || '';
         const descriptionText = fullText.length > 60 ? fullText.substring(0, 60) + '...' : fullText;
-        // 逐行解析，遇到固定前缀则将前缀用 <strong> 包裹
-        const lines = descriptionText.split('\n');
-        lines.forEach((line, i) => {
-          const m = line.match(/^(坐标数据：|植物志记录：|气味数据：|情绪数据：)([\s\S]*)$/);
-          if (m) {
+        // 逐行解析（与 PlantCard 共用同一份解析逻辑，避免重复）
+        const parts = parsePlantDescription(descriptionText);
+        parts.forEach((part, i) => {
+          if (part.type === 'prefixed') {
             const strong = document.createElement('strong');
             strong.style.fontWeight = '600';
-            strong.textContent = m[1];
+            strong.textContent = part.prefix;
             descriptionDiv.appendChild(strong);
-            descriptionDiv.appendChild(document.createTextNode(m[2] || ''));
+            descriptionDiv.appendChild(document.createTextNode(part.text || ''));
           } else {
-            descriptionDiv.appendChild(document.createTextNode(line));
+            descriptionDiv.appendChild(document.createTextNode(part.text));
           }
-          if (i !== lines.length - 1) {
+          if (i !== parts.length - 1) {
             descriptionDiv.appendChild(document.createElement('br'));
           }
         });
@@ -673,34 +717,93 @@ export default function MapLibreMap({ center, zoom }: MapContainerProps) {
           const start = waypoints[0];
           const end = waypoints[1];
           
+          // 将起点和终点转换为 GCJ-02（用于在地图上显示）
+          const [startGcjLat, startGcjLng] = wgs84ToGcj02(start.lat, start.lng);
+          const [endGcjLat, endGcjLng] = wgs84ToGcj02(end.lat, end.lng);
+          
+          // 辅助函数：绘制直线路径（备用方案）
+          const drawStraightLine = () => {
+            console.log('Using straight line fallback for route');
+            const source = map.getSource('route') as maplibregl.GeoJSONSource;
+            if (source) {
+              source.setData({
+                type: 'Feature',
+                properties: {},
+                geometry: {
+                  type: 'LineString',
+                  coordinates: [
+                    [startGcjLng, startGcjLat],
+                    [endGcjLng, endGcjLat]
+                  ]
+                }
+              });
+            }
+          };
+          
           try {
-            // OSRM 公共服务可能在大陆较慢，且需要 WGS84 坐标
+            // 尝试使用 OSRM 公共服务获取步行路线
+            // 设置较短的超时时间，避免等待太久
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 8000); // 8秒超时
+            
             const response = await fetch(
-              `https://router.project-osrm.org/route/v1/foot/${start.lng},${start.lat};${end.lng},${end.lat}?overview=full&geometries=geojson`
+              `https://router.project-osrm.org/route/v1/foot/${start.lng},${start.lat};${end.lng},${end.lat}?overview=full&geometries=geojson`,
+              { signal: controller.signal }
             );
+            clearTimeout(timeoutId);
+            
+            if (!response.ok) {
+              throw new Error(`HTTP error: ${response.status}`);
+            }
+            
             const data = await response.json();
+            
             if (data.routes && data.routes.length > 0) {
               const route = data.routes[0].geometry;
               
               // 将路线中的所有 WGS84 坐标转换为 GCJ-02 以匹配底图
-              if (route.type === 'LineString') {
+              if (route.type === 'LineString' && route.coordinates.length > 0) {
                 route.coordinates = route.coordinates.map((coord: number[]) => {
                   const [glat, glng] = wgs84ToGcj02(coord[1], coord[0]);
                   return [glng, glat];
                 });
+                
+                const source = map.getSource('route') as maplibregl.GeoJSONSource;
+                if (source) {
+                  source.setData({
+                    type: 'Feature',
+                    properties: {},
+                    geometry: route
+                  });
+                }
+                console.log('Route loaded successfully with', route.coordinates.length, 'points');
+              } else {
+                // 路线数据无效，使用直线
+                drawStraightLine();
               }
-              
-              const source = map.getSource('route') as maplibregl.GeoJSONSource;
-              if (source) {
-                source.setData({
-                  type: 'Feature',
-                  properties: {},
-                  geometry: route
-                });
-              }
+            } else {
+              // 没有找到路线，使用直线
+              console.warn('No route found, using straight line');
+              drawStraightLine();
             }
           } catch (err) {
-            console.error('Failed to fetch route geometry:', err);
+            // 请求失败（网络问题、超时等），使用直线作为备用
+            console.warn('Failed to fetch route, using straight line:', err);
+            drawStraightLine();
+          }
+        },
+        // 清除路线
+        clearRoute: () => {
+          const source = map.getSource('route') as maplibregl.GeoJSONSource;
+          if (source) {
+            source.setData({
+              type: 'Feature',
+              properties: {},
+              geometry: {
+                type: 'LineString',
+                coordinates: []
+              }
+            });
           }
         }
       };
@@ -727,6 +830,13 @@ export default function MapLibreMap({ center, zoom }: MapContainerProps) {
         clusterMarker.remove();
       });
       clusterMarkersRef.current = [];
+      
+      // 清理所有植物标记
+      markersRef.current.forEach(marker => {
+        marker.remove();
+      });
+      markersRef.current = [];
+      markersMapRef.current.clear();
       
       // 清理地图实例（会自动清理所有事件监听器）
       if (mapInstanceRef.current) {
@@ -802,6 +912,20 @@ export default function MapLibreMap({ center, zoom }: MapContainerProps) {
       const lightLayer = map.getLayer('local-light-layer');
       const satelliteLayer = map.getLayer('local-satellite-layer');
       
+      // 辅助函数：确保路线图层在底图之上
+      const ensureRouteLayersOnTop = () => {
+        const routeOutline = map.getLayer('route-layer-outline');
+        const routeLayer = map.getLayer('route-layer');
+        const userPulse = map.getLayer('user-location-pulse');
+        const userLocation = map.getLayer('user-location-layer');
+        
+        // 按顺序移动图层到顶部：outline -> route -> pulse -> user
+        if (routeOutline) map.moveLayer('route-layer-outline');
+        if (routeLayer) map.moveLayer('route-layer');
+        if (userPulse) map.moveLayer('user-location-pulse');
+        if (userLocation) map.moveLayer('user-location-layer');
+      };
+      
       if (targetLayer === 'satellite') {
         // 切换到卫星图层
         if (!satelliteSource) {
@@ -820,13 +944,15 @@ export default function MapLibreMap({ center, zoom }: MapContainerProps) {
             maxzoom: 18
           });
           
+          // 将底图图层添加到路线图层下方
+          const routeOutline = map.getLayer('route-layer-outline');
           map.addLayer({
             id: 'local-satellite-layer',
             type: 'raster',
             source: 'local-satellite',
             minzoom: 10,
             maxzoom: 18
-          });
+          }, routeOutline ? 'route-layer-outline' : undefined);
         }
         
         // 隐藏 light 图层，显示 satellite 图层
@@ -837,10 +963,15 @@ export default function MapLibreMap({ center, zoom }: MapContainerProps) {
         if (newSatelliteLayer) {
           map.setLayoutProperty('local-satellite-layer', 'visibility', 'visible');
         }
+        
+        // 确保路线图层在最上面
+        ensureRouteLayersOnTop();
       } else {
         // 切换到 light 图层
         if (!lightSource) {
           // 使用高德街道图
+          // 将底图图层添加到路线图层下方
+          const routeOutline = map.getLayer('route-layer-outline');
           map.addSource('local-light', {
             type: 'raster',
             tiles: [
@@ -867,7 +998,7 @@ export default function MapLibreMap({ center, zoom }: MapContainerProps) {
               'raster-brightness-min': 0,
               'raster-brightness-max': 1
             }
-          });
+          }, routeOutline ? 'route-layer-outline' : undefined);
         }
         
         // 隐藏 satellite 图层，显示 light 图层
@@ -878,6 +1009,9 @@ export default function MapLibreMap({ center, zoom }: MapContainerProps) {
         if (newLightLayer) {
           map.setLayoutProperty('local-light-layer', 'visibility', 'visible');
         }
+        
+        // 确保路线图层在最上面
+        ensureRouteLayersOnTop();
       }
     };
     
